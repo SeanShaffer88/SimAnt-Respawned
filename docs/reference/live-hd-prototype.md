@@ -14,6 +14,8 @@ The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls us
 
 In the Surface B-Trail scent view, complete native Black Trail patterns appear as clearer colored marks with distinct intensities. Partial or ambiguous patterns and other scent modes keep their DOS pixels.
 
+On the Surface, stationary food clusters that match the verified native pattern gain brighter green highlights and olive edges. The redraw uses the native silhouette and position. Clipped clusters and clusters covered by another object retain their DOS artwork.
+
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 
 ## Local Inputs

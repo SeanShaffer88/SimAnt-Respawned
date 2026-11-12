@@ -5,6 +5,7 @@ from random import Random
 
 from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_cursor import paint_cursor
+from hd_food import paint_food
 from hd_trails import paint_trails
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
@@ -323,6 +324,8 @@ def render_hd(frame, payload, observation):
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
     if not overlay:
+        if view == SURFACE:
+            paint_food(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
         paint_actors(pixels, frame, payload, observation)
         if view == SURFACE:
             paint_trails(pixels, frame, observation.get("scent_mode"))

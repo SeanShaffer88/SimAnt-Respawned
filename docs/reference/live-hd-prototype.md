@@ -16,6 +16,8 @@ In the Surface B-Trail scent view, complete native Black Trail patterns appear a
 
 On the Surface, stationary food clusters that match the verified native pattern gain brighter green highlights and olive edges. The redraw uses the native silhouette and position. Clipped clusters and clusters covered by another object retain their DOS artwork.
 
+The HD Surface also shades three verified pebble shapes with cool highlights and warm granite tones. Only the original gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
+
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 
 ## Local Inputs

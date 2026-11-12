@@ -36,7 +36,7 @@ During Full Game Surface panning, the first terrain buffer is checked against th
 
 In the shallow Full Game Black Nest, HD follows verified digging and horizontal panning once the native Edit pane has enough exposed tunnel floor to corroborate the captured terrain. It redraws dark soil and light tunnel floors within matching cells. Gray walls, the original Map, and the occupied tile retain their native terrain pixels. Early shafts, foreground Map windows, and unconfirmed views retain the DOS terrain.
 
-The first Tutorial dig uses HD terrain in the maximized Edit view when the original frame and both captured terrain spans agree. Soil and tunnel floor are redrawn inside complete verified tiles below the top rows. The Yellow Ant, cursor, controls, and gray walls keep their native pixels. Tutorial prompts and a cursor overlapping the Yellow Ant display in Classic.
+The first Tutorial dig uses HD terrain in the maximized Edit view when the original frame and both captured terrain spans agree. Soil and tunnel floor are redrawn inside complete verified tiles below the top rows. In confirmed soil tiles, matching dark neighbors fill small gaps in the HD texture away from tunnel floors and walls. The Yellow Ant, cursor, controls, and gray walls keep their native pixels. Tutorial prompts and a cursor overlapping the Yellow Ant display in Classic.
 
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 

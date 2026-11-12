@@ -18,10 +18,18 @@ $inputs = @(
     '--core', 'C:\simant-reference\dosbox_pure_libretro.dll',
     '--title-state', 'C:\simant-reference\quick-game-title-start.state'
 )
-python -B .\tools\live_hd.py @inputs --out 'C:\simant-reference\play'
+python -B .\tools\live_hd.py @inputs --out 'C:\simant-reference\play-01' --save-dir 'C:\simant-reference\saves'
 ```
 
 Dismiss the original startup prompts and select Quick Game. F11 switches between Classic and HD during play. The display bar shows when the requested HD mode is using the current Classic frame. The DOS menus and mouse controls remain available in both modes.
+
+## Save and Resume
+
+Use **File > Save As** in SimAnt to name a new save, then click **Save**. Use Quit or Alt+F4 to close the host and commit the DOS save archive. For the next launch, reuse the same `--save-dir` and choose a new `--out` directory. Dismiss the original startup prompts and select **Load Game** from the game selection dialog. Select the `.ANT` file and click **Load**. The original game opens paused. Bring Edit to the foreground and click **Pause** in the Edit toolbar to resume. Both display modes use the same saves.
+
+One running instance owns each save directory. DOSBox Pure works on a copy under the run's scratch directory. After a clean close, the host checks the new archive and replaces the profile copy only when it has changed. A failed run or failed update leaves the prior profile in place. Keep both directories local because they can contain original game data. A launch without `--save-dir` keeps its saves in that run's scratch directory.
+
+The Windows reopen check restored the saved view, camera, and Yellow Ant position, then resumed gameplay with the original Pause control. The tested loaded Surface and Black Nest did not match the current HD terrain capture ranges after resuming and switching views. The HD selection displayed the native Classic frames in both views. HD terrain capture for loaded games remains open.
 
 ## Verify
 

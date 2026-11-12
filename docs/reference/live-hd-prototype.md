@@ -2,9 +2,15 @@
 
 This Windows prototype opens in borderless fullscreen and runs the pinned SimAnt DOS Quick Game in one DOSBox Pure session. The game is centered at a whole-number scale. F11 and the display button switch the host presentation. Both modes use the original coordinate system and guest inputs. Use Quit or Alt+F4 to close the host.
 
-HD uses the synchronized capture to redraw verified Surface and Black Nest terrain at twice the original resolution. It preserves the original controls, minimap, and entities. The current Classic frame remains available whenever the scene cannot be verified or an unsupported view is active.
+HD uses the synchronized capture to redraw verified Surface and Black Nest terrain at twice the original resolution. The game keeps its original controls, minimap, and entity positions. The current Classic frame remains available whenever the scene cannot be verified or an unsupported view is active.
 
-The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. The renderer uses the same verified tile and source-pixel masks, so the original rock and tunnel boundaries, food, ants, trails, and controls keep their native placement and pixels.
+The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. Verified tile and source-pixel masks preserve the original rock and tunnel boundaries and food.
+
+The HD Yellow Ant follows recognized native poses. One labeled Black Queen silhouette also has an HD redraw. Worker and soldier sprites and unknown or occluded poses retain the original DOS artwork.
+
+The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls use a higher-contrast palette. A skin applies only when the original control matches its verified frame region. Menu contents, label shapes, and control hit areas stay in place. Open menus and unconfirmed control states retain their native pixels.
+
+In the Surface B-Trail scent view, complete native Black Trail patterns appear as clearer colored marks with distinct intensities. Partial or ambiguous patterns and other scent modes keep their DOS pixels.
 
 ## Local Inputs
 
@@ -62,4 +68,4 @@ On Windows 11, the default endpoint naturally completed all 222,720 submitted fr
 
 ## Prototype Limits
 
-The renderer redraws verified terrain and retains the original sprites and interface. Replay evidence applies to the pinned DOS build and Quick Game fixtures.
+Terrain, sprite poses, scent patterns, and control states outside the verified set retain the original DOS presentation. Replay evidence applies to the pinned DOS build and Quick Game fixtures.

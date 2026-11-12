@@ -26,6 +26,7 @@ from hd_ui import (
     paint_dropdown, paint_scent_menu, paint_ui,
 )
 from hd_workspace import paint_workspace
+from hd_yard_scene import verified_yard_runs
 from verify_synchronized_scene import CAPACITY, NEST, RED_NEST, SURFACE, TERRAIN_START
 
 
@@ -96,6 +97,20 @@ def render_dropdown_only(frame):
     width, height = frame[:2]
     pixels = _doubled_rgb(width, height, _rgb_channels(frame))
     paint(pixels, width, menu)
+    paint_cursor(pixels, frame)
+    return _ppm(width * 2, height * 2, pixels)
+
+
+def render_full_yard(frame, scalars):
+    """Repaint a verified original Yard while keeping the native UI and blink."""
+    runs = verified_yard_runs(frame, scalars)
+    if runs is None:
+        return None
+    width, height = frame[:2]
+    pixels = _doubled_rgb(width, height, _rgb_channels(frame))
+    for row, left, colors in runs:
+        start = row * width * 6 + left
+        pixels[start:start + len(colors)] = colors
     paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)
 

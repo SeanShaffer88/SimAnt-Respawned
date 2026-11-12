@@ -3,6 +3,7 @@
 import argparse
 from collections import deque
 import ctypes as c
+from ctypes.wintypes import BOOL
 import math
 from pathlib import Path
 import sys
@@ -707,6 +708,29 @@ class GameWindow:
             self.root.destroy()
 
 
+def _enable_per_monitor_dpi():
+    per_monitor_v2 = c.c_void_p(-4)  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+    try:
+        user32 = c.WinDLL("user32", use_last_error=True)
+        set_context = user32.SetProcessDpiAwarenessContext
+        set_context.argtypes, set_context.restype = (c.c_void_p,), BOOL
+        c.set_last_error(0)
+        if set_context(per_monitor_v2):
+            return
+        error = c.get_last_error()
+        if error == 5:  # ERROR_ACCESS_DENIED: the process already has a default context.
+            get_context = user32.GetThreadDpiAwarenessContext
+            get_context.argtypes, get_context.restype = (), c.c_void_p
+            equal = user32.AreDpiAwarenessContextsEqual
+            equal.argtypes, equal.restype = (c.c_void_p, c.c_void_p), BOOL
+            if equal(get_context(), per_monitor_v2):
+                return
+        detail = f"Windows error {error}"
+    except (AttributeError, OSError) as error:
+        detail = str(error)
+    print(f"SimAnt Respawned: Per-Monitor V2 DPI awareness unavailable ({detail}).", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("archive", "core", "out"):
@@ -717,6 +741,7 @@ def main():
     if sys.platform != "win32" or c.sizeof(c.c_void_p) != 8:
         parser.error("This prototype requires 64-bit Windows Python")
 
+    _enable_per_monitor_dpi()
     import tkinter as tk
 
     try:

@@ -17,9 +17,17 @@ EDIT_LEFT, EDIT_TOP, EDIT_RIGHT, EDIT_BOTTOM = 64, 42, 416, 377
 # Hashes authenticate the positive palette footprint in the full projected
 # window. In particular, a cursor over the ant must not count as a new pose.
 PLAYER_POSES = {
-    2: "0a8b1c2dd0df47114654ef70a302d4e91e17130b9eee520fc22299260d4410d4",
-    3: "b8cc72dc7c24de737333fe5582759200a386ed2b66b9279c84aebddb0a20737e",
-    7: "8f93af79eebaded823ae4c002a416b56ea0708f81b6a1d8c9ed0236bad3403e7",
+    0: ("ee3b34e115e807296af2ecd16354345ef70545243291d7ff4cbccc08f37f2ff1",),
+    1: ("03e8734a49cb636c2575a89fd03e9b944da632c9215e5c82dee467a0371c1272",),
+    2: (
+        "0a8b1c2dd0df47114654ef70a302d4e91e17130b9eee520fc22299260d4410d4",
+        "21623b108992194f0fa328091e810615adf4c2328151a286a15f427dff696491",
+    ),
+    3: ("b8cc72dc7c24de737333fe5582759200a386ed2b66b9279c84aebddb0a20737e",),
+    4: ("29dc8b5b3797ff5ab8fc4673f5cb35a8bf41661f79ac5cc7933ad6861424dcac",),
+    5: ("84fa7c2e1b66e4106b6a61329ccccf844811bbd4791c9151e8ef7545d0df4b2c",),
+    6: ("d5a328e000985b6db30659e5d629cd1f74f3723dd744d07020c251ebc6cae2ba",),
+    7: ("8f93af79eebaded823ae4c002a416b56ea0708f81b6a1d8c9ed0236bad3403e7",),
 }
 # A pose key contains width, height, pixel count and the SHA-256 of the
 # complete normalized footprint. The opening Black Queen is documented in
@@ -63,8 +71,8 @@ def _player_support(frame, payload, observation):
     if center is None:
         return (), 0
     heading = unpack_from("<H", payload, PLAYER_HEADING)[0]
-    signature = PLAYER_POSES.get(heading)
-    if signature is None:
+    signatures = PLAYER_POSES.get(heading)
+    if signatures is None:
         return (), 0
 
     _, _, pitch, _, raw = frame
@@ -79,7 +87,7 @@ def _player_support(frame, payload, observation):
             if raw[start:start + 3] == GOLD_BGR:
                 points.append((left + x, top + y))
                 mask |= 1 << (y * width + x)
-    if sha256(mask.to_bytes((width * height + 7) // 8, "little")).hexdigest() != signature:
+    if sha256(mask.to_bytes((width * height + 7) // 8, "little")).hexdigest() not in signatures:
         return (), 0
     world_x, world_y, _ = observation["ant"]
     step = world_y if heading in (0, 4) else world_x

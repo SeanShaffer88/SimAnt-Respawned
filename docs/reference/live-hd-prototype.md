@@ -32,6 +32,8 @@ The verified adult Yellow Ant emergence and first forage in Full Game also use H
 
 During Full Game Surface panning, the first terrain buffer is checked against the exposed right side of the native Map and against aligned soil and rock cells in the Edit pane. HD redraws only verified native pixel patterns. A fully offscreen Yellow Ant can stay offscreen in HD when no native ant pixels are visible. A clipped ant, an unknown pose, or unconfirmed terrain keeps the DOS artwork.
 
+In the shallow Full Game Black Nest, HD follows verified digging and horizontal panning once the native Edit pane has enough exposed tunnel floor to corroborate the captured terrain. It redraws dark soil and light tunnel floors within matching cells. Gray walls, the original Map, and the occupied tile retain their native terrain pixels. Early shafts, foreground Map windows, and unconfirmed views retain the DOS terrain.
+
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 
 In a verified HD scene, the default DOS window arrangement can use a slate-teal desktop backdrop. The redraw follows the native exterior and checks the window rails before painting. Window contents, borders, and native cursor coverage retain their original positions.

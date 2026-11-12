@@ -32,6 +32,7 @@ PLAYER_POSES = {
     7: ("8f93af79eebaded823ae4c002a416b56ea0708f81b6a1d8c9ed0236bad3403e7",),
 }
 _FORAGE_APPROACH = "1eceda1f5ff0346db8ab5c992577fde283ac9744931c87c3f568ed8d9891a11b"
+_FULL_NEST_HEADING_6 = "6b45f986c5f4cc3f807c1ce959a58e48f749eeed34181d8017b6cf0058ed46b0"
 _CARRYING_POSES = {
     2: "435f070b3604e4866c7dff298ae4acf05b03def571f15f1e045f15caa22483c2",
     6: "79bca6f157b2ebdfe017b33c918d47ba383e23f6842e04aa436f3c0cb02e0968",
@@ -93,6 +94,8 @@ def player_support(frame, payload, observation):
         return (), 0
     heading = unpack_from("<H", payload, PLAYER_HEADING)[0]
     signatures = PLAYER_POSES.get(heading)
+    if observation.get("full_nest_pose") and heading == 6:
+        signatures += (_FULL_NEST_HEADING_6,)
     if signatures is None:
         return (), 0
 
@@ -218,7 +221,7 @@ def paint_actors(pixels, frame, payload, observation):
     if observation.get("result") != "accepted":
         return
     stride = frame[0] * 6
-    if observation.get("edit") == NEST:
+    if observation.get("edit") == NEST and not observation.get("full_nest_pose"):
         paint_nest_supports(pixels, stride, nest_supports(frame))
     if observation.get("full_forage_pose"):
         points, food, phase = forage_player_support(frame, payload, observation)

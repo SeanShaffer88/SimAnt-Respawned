@@ -24,7 +24,7 @@ In the Surface scent views, complete native B-Trail tiles use teal marks. Three 
 
 On the Surface, stationary food clusters that match the verified native pattern gain brighter green highlights and olive edges. The redraw uses the native silhouette and position. Clipped clusters and clusters covered by another object retain their DOS artwork.
 
-The HD Surface also shades three verified pebble shapes with cool highlights and warm granite tones. Only the original gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
+The HD Surface also shades three verified pebble shapes and a larger boulder with cool highlights and warm granite tones. The boulder requires a complete native silhouette and an intact ring of surrounding soil. Only the original connected gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
 
 Two verified Surface foliage sprites use subdued green accents in HD. The grass tuft and fern keep their native shape, position, and shadows. Clipped or obscured foliage keeps its original artwork.
 

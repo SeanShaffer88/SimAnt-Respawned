@@ -2,20 +2,24 @@
 
 from hashlib import sha256
 
-from hd_actors import PLAYER_HEADING, cursor_clear_of_player, player_support
+from hd_actors import PLAYER_HEADING, cursor_clear_of_player, forage_player_support, player_support
 from verify_synchronized_scene import CAPACITY, SURFACE, TERRAIN_START
 
 
 EAST_SURFACE_LAYOUT = "legacy-secondary-surface"
 FULL_SURFACE_LAYOUT = "full-surface-raster"
 FULL_SURFACE_CAMERA = (25, 21)
+_FORAGE_CAMERA = (45, 14)
 _PINK = b"\x86\x08\xf3"
 _ORANGE = b"\0\x65\xff"
 _MINIMAP_COLORS = {b"\x38\x71\x92": 11, b"\x82" * 3: 13}
-_FULL_SURFACE_WITNESSES = (
-    ((137, 25, 294, 40), "0f4a0259c4da8c3224c1d0dec8a6dd8879db07b7735a46c79c8e6c376b825d75"),
-    ((192, 90, 222, 122), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
-)
+_FULL_SURFACE_TITLE = ((137, 25, 294, 40), "0f4a0259c4da8c3224c1d0dec8a6dd8879db07b7735a46c79c8e6c376b825d75")
+_FULL_SURFACE_LANDMARKS = {
+    FULL_SURFACE_CAMERA: ((192, 90, 222, 122), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
+    _FORAGE_CAMERA: ((142, 145, 194, 194), "99e469ad9688888a78aa542193a09785b3119c683abee8d837f9d0afd022a312"),
+    (25, 20): ((192, 106, 222, 138), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
+}
+FULL_SURFACE_CAMERAS = frozenset(_FULL_SURFACE_LANDMARKS)
 _SOIL_BGR = ((4, 44, 85), (56, 113, 146))
 _SOIL_BANDS = ((42, 126), (126, 210), (210, 294), (294, 377))
 
@@ -116,28 +120,38 @@ def _dense_phase_soil(raw, pitch):
 
 
 def verify_full_surface(frame, legacy_payload, legacy_observation, scent_mode):
-    """Corroborate the observed adult Full Game emergence with native pixels."""
+    """Corroborate adult Full Game emergence and forage with native pixels."""
     if (scent_mode != 255 or legacy_observation.get("edit") != SURFACE
             or legacy_observation.get("map") != SURFACE
             or legacy_observation.get("views") != [SURFACE] * 3
             or len(legacy_payload) != CAPACITY):
         return None
-    camera_x, camera_y = legacy_observation["camera"]
+    camera = tuple(legacy_observation["camera"])
+    camera_x, camera_y = camera
     ant_x, ant_y, ant_layer = legacy_observation["ant"]
-    if (camera_x, camera_y) != FULL_SURFACE_CAMERA or ant_layer != SURFACE:
+    landmark = _FULL_SURFACE_LANDMARKS.get(camera)
+    if landmark is None or ant_layer != SURFACE:
         return None
-    if int.from_bytes(legacy_payload[PLAYER_HEADING:PLAYER_HEADING + 2], "little") != 2:
+    heading = int.from_bytes(legacy_payload[PLAYER_HEADING:PLAYER_HEADING + 2], "little")
+    panned_forage = camera == _FORAGE_CAMERA
+    if not panned_forage and heading != (2 if camera == FULL_SURFACE_CAMERA else 6):
         return None
     width, height, pitch, fmt, raw = frame
     if (width, height, fmt) != (640, 480, 1) or pitch < 4 * width or len(raw) < pitch * height:
         return None
-    if not all(_rgb_digest(raw, pitch, bounds) == expected for bounds, expected in _FULL_SURFACE_WITNESSES):
+    if not all(_rgb_digest(raw, pitch, bounds) == expected for bounds, expected in (_FULL_SURFACE_TITLE, landmark)):
         return None
     center = [71 + 16 * (ant_x - camera_x), 49 + 16 * (ant_y - camera_y)]
     observation = {
         **legacy_observation, "result": "accepted", "visible_ant": center,
         "terrain_layout": FULL_SURFACE_LAYOUT, "scent_mode": scent_mode,
     }
-    if not cursor_clear_of_player(frame, center) or not player_support(frame, legacy_payload, observation)[0]:
+    if not cursor_clear_of_player(frame, center):
+        return None
+    if panned_forage:
+        if not forage_player_support(frame, legacy_payload, observation)[0]:
+            return None
+        observation["full_forage_pose"] = True
+    elif not player_support(frame, legacy_payload, observation)[0]:
         return None
     return observation if _dense_phase_soil(raw, pitch) else None

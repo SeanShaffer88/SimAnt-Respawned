@@ -11,7 +11,7 @@ from hd_pebbles import paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
 from hd_red_queen import paint_red_queen
-from hd_surface_scene import EAST_SURFACE_LAYOUT, FULL_SURFACE_CAMERA, FULL_SURFACE_LAYOUT, east_surface_camera
+from hd_surface_scene import EAST_SURFACE_LAYOUT, FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT, east_surface_camera
 from hd_trails import paint_trails
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
@@ -269,7 +269,7 @@ def render_hd(frame, payload, observation):
     occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported east Surface camera")
-    if full and (view != SURFACE or (camera_x, camera_y) != FULL_SURFACE_CAMERA):
+    if full and (view != SURFACE or (camera_x, camera_y) not in FULL_SURFACE_CAMERAS):
         raise ValueError("Unsupported Full Game Surface camera")
     if not east and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")

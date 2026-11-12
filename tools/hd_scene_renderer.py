@@ -3,9 +3,9 @@
 from functools import cache
 from random import Random
 
-from hd_actors import paint_actors
+from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_trails import paint_trails
-from hd_ui import paint_ui
+from hd_ui import MENU_BAR, matching_ui, paint_ui
 from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
 
 
@@ -47,6 +47,30 @@ def render_classic(frame):
     for channel, values in enumerate(_rgb_channels(frame)):
         pixels[channel::3] = values
     return _ppm(width, height, pixels)
+
+
+def render_caste_only(frame):
+    """Redraw verified Black Nest castes over a 2× native frame."""
+    supports = [(caste, points) for caste, points in nest_supports(frame) if caste != "queen"]
+    if not supports:
+        return None
+    width, height = frame[:2]
+    channels = _rgb_channels(frame)
+    menu = next(matching_ui(channels, width), None)
+    if menu is None or menu[0] != MENU_BAR:
+        return None
+
+    stride = width * 6
+    pixels = bytearray(stride * height * 2)
+    for y in range(height):
+        start = y * width
+        row = bytearray(stride)
+        for channel, values in enumerate(channels):
+            row[channel::3] = _double(values[start:start + width])
+        offset = y * stride * 2
+        pixels[offset:offset + stride * 2] = row + row
+    paint_nest_supports(pixels, stride, supports)
+    return _ppm(width * 2, height * 2, pixels)
 
 
 @cache

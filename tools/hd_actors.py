@@ -21,11 +21,19 @@ PLAYER_POSES = {
     3: "b8cc72dc7c24de737333fe5582759200a386ed2b66b9279c84aebddb0a20737e",
     7: "8f93af79eebaded823ae4c002a416b56ea0708f81b6a1d8c9ed0236bad3403e7",
 }
-# The original DOS manual identifies the large black ant in the opening nest
-# as the queen. Require its complete observed silhouette, not size or color
-# alone. Unsupported poses, overlaps, and other castes keep their native art.
-QUEEN_POSE = "c16f940ba876f7ac6711d31ec257e60d1ecc3bdc34584a8dbbbdf38d26489255"
-QUEEN_SIZE = 79
+# A pose key contains width, height, pixel count and the SHA-256 of the
+# complete normalized footprint. The opening Black Queen is documented in
+# the original DOS manual.
+NEST_POSES = {
+    (23, 22, 79, "c16f940ba876f7ac6711d31ec257e60d1ecc3bdc34584a8dbbbdf38d26489255"): "queen",
+    (13, 16, 70, "08ac3d5b5c5dab7ba3ae2dc5cdd18c0f7185007a06de5cf38e8e932739677d2a"): "soldier",
+    (15, 15, 53, "a73a839c73f02586560f2f9524a1ed18a17b3a802bad9382027021461b839795"): "worker",
+}
+NEST_PALETTES = {
+    "queen": (b"\x27\x1e\x28", b"\x64\x48\x58"),
+    "soldier": (b"\x3a\x29\x20", b"\x9c\x69\x44"),
+    "worker": (b"\x34\x38\x3e", b"\x82\x8a\x92"),
+}
 NEIGHBORS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
              (1, 0), (-1, 1), (0, 1), (1, 1))
 
@@ -75,7 +83,8 @@ def _player_support(frame, payload, observation):
     return points, step % 2
 
 
-def _queen_support(frame):
+def nest_supports(frame):
+    """Match complete black components to verified native caste poses."""
     _, _, pitch, _, raw = frame
     black = set()
     for y in range(EDIT_TOP, EDIT_BOTTOM):
@@ -90,7 +99,9 @@ def _queen_support(frame):
         if len(black) > 4096:
             return ()
 
-    match = ()
+    candidate_sizes = {key[:3] for key in NEST_POSES}
+    candidate_counts = {size[2] for size in candidate_sizes}
+    matches, queens = [], []
     while black:
         component = []
         pending = deque([black.pop()])
@@ -102,20 +113,32 @@ def _queen_support(frame):
                 if neighbor in black:
                     black.remove(neighbor)
                     pending.append(neighbor)
-        if len(component) != QUEEN_SIZE:
+        if len(component) not in candidate_counts:
             continue
         left, top = min(x for x, _ in component), min(y for _, y in component)
         width = max(x for x, _ in component) - left + 1
         height = max(y for _, y in component) - top + 1
-        if (width, height) != (23, 22) or not _inside_edit(left, top, width, height):
+        size = (width, height, len(component))
+        if size not in candidate_sizes or not _inside_edit(left, top, width, height):
             continue
         points = sorted(component, key=lambda point: (point[1], point[0]))
         footprint = bytes(value for x, y in points for value in (x - left, y - top))
-        if sha256(bytes((width, height)) + footprint).hexdigest() == QUEEN_POSE:
-            if match:
-                return ()
-            match = points
-    return match
+        signature = sha256(bytes((width, height)) + footprint).hexdigest()
+        caste = NEST_POSES.get((*size, signature))
+        if caste == "queen":
+            queens.append((caste, points))
+        elif caste and _inside_edit(left - 1, top - 1, width + 2, height + 2):
+            matches.append((caste, points))
+    if len(queens) == 1:
+        matches.extend(queens)
+    return matches
+
+
+def paint_nest_supports(pixels, stride, supports):
+    """Draw previously matched nest components onto a 2× RGB frame."""
+    for caste, points in supports:
+        base, highlight = NEST_PALETTES[caste]
+        _paint_support(pixels, stride, points, base, highlight, 0)
 
 
 def paint_actors(pixels, frame, payload, observation):
@@ -124,7 +147,6 @@ def paint_actors(pixels, frame, payload, observation):
         return
     stride = frame[0] * 6
     if observation.get("edit") == NEST:
-        _paint_support(pixels, stride, _queen_support(frame),
-                       b"\x27\x1e\x28", b"\x64\x48\x58", 0)
+        paint_nest_supports(pixels, stride, nest_supports(frame))
     points, phase = _player_support(frame, payload, observation)
     _paint_support(pixels, stride, points, b"\xd9\x8f\x22", b"\xff\xec\x81", phase)

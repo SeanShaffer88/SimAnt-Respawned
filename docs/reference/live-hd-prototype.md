@@ -16,6 +16,8 @@ The Red Queen's verified pose uses carmine and copper shading on the original re
 
 Two Red Worker poses identified by the native Worker info card use muted crimson and coral highlights. The redraw applies only to the original red shell pixels in verified Red Nest terrain views with a complete pose and a clear cursor. The black outline and any green detail stay native. The occupied Red Nest entry, Worker info cards, and unmatched poses keep their original Worker pixels.
 
+One Red Soldier pose identified by the native Soldier info card uses crimson with warm highlights in the running Quick Game Surface view. HD shades the 20 original red shell pixels when the complete sprite and surrounding pixels match in a verified scene. The black outline and legs retain their original pixels. The Soldier info card, paused views, and unmatched poses retain their native artwork.
+
 The HD Yellow Ant follows nine verified native silhouettes across all eight headings. The Black Nest redraw covers the labeled Black Queen silhouette, three verified worker movement poses, and two verified soldier movement poses. Workers use charcoal with silver highlights. Soldiers use warmer bronze highlights. The DOS game determines when each pose appears. Each redraw follows the exact native pixels of the matching pose, and unmatched or occluded poses retain the DOS artwork.
 
 When the Black Nest view is confirmed but its terrain is unconfirmed, HD can still redraw verified workers and soldiers over the doubled native frame. The DOS menu bar must match the resting menu, and the Edit pane must be clear of overlays.

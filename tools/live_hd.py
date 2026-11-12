@@ -228,12 +228,12 @@ class LiveSession:
     """Keep presentation state outside the sole running DOS session."""
 
     def __init__(self, archive, core, title_state, out, *, save_dir=None):
-        self.title_state = Path(title_state).resolve()
+        self.title_state = None if title_state is None else Path(title_state).resolve()
         archive, core, out = (Path(p).resolve() for p in (archive, core, out))
-        for path, expected in (
-            (archive, ARCHIVE_SHA256), (core, CORE_SHA256), (self.title_state, TITLE_STATE_SHA256)
-        ):
-            verify_file(path, expected)
+        verify_file(archive, ARCHIVE_SHA256)
+        verify_file(core, CORE_SHA256)
+        if self.title_state is not None:
+            verify_file(self.title_state, TITLE_STATE_SHA256)
         out.mkdir()
         scratch = out / "scratch"
         scratch.mkdir()
@@ -260,8 +260,9 @@ class LiveSession:
 
     def start(self):
         self.host.negotiate_av()
-        self.host.run(400)
-        self.host.load_title_state(self.title_state)
+        if self.title_state is not None:
+            self.host.run(400)
+            self.host.load_title_state(self.title_state)
         self._started = True
 
     @property
@@ -569,8 +570,9 @@ class GameWindow:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for option in ("archive", "core", "title-state", "out"):
+    for option in ("archive", "core", "out"):
         parser.add_argument(f"--{option}", required=True, type=Path)
+    parser.add_argument("--title-state", type=Path, help="Pinned title snapshot for replay work")
     parser.add_argument("--save-dir", type=Path, help="Persistent directory for the original DOS saves")
     args = parser.parse_args()
     if sys.platform != "win32" or c.sizeof(c.c_void_p) != 8:

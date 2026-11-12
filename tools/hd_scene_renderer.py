@@ -17,7 +17,8 @@ from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, 
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
 from hd_red_queen import paint_red_castes, paint_red_queen
 from hd_surface_scene import (
-    EAST_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT, FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
+    EAST_SURFACE_LAYOUT, FULL_LOADED_SURFACE_CAMERA, FULL_LOADED_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT,
+    FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
     east_surface_camera, full_surface_camera,
 )
 from hd_trails import paint_trails
@@ -315,7 +316,8 @@ def render_hd(frame, payload, observation):
     east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
     full = observation.get("terrain_layout") == FULL_SURFACE_LAYOUT
     full_panned = observation.get("terrain_layout") == FULL_PANNED_SURFACE_LAYOUT
-    surface_raster_only = east or full or full_panned
+    full_loaded = observation.get("terrain_layout") == FULL_LOADED_SURFACE_LAYOUT
+    surface_raster_only = east or full or full_panned or full_loaded
     occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
     full_nest = observation.get("terrain_layout") == FULL_BLACK_NEST_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
@@ -324,6 +326,8 @@ def render_hd(frame, payload, observation):
         raise ValueError("Unsupported Full Game Surface camera")
     if full_panned and (view != SURFACE or not full_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported panned Full Game Surface camera")
+    if full_loaded and (view != SURFACE or (camera_x, camera_y) != FULL_LOADED_SURFACE_CAMERA):
+        raise ValueError("Unsupported loaded Full Game Surface camera")
     if not (east or full_panned) and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")
     red_masks = occupied_red_raster(frame) if occupied_red else None

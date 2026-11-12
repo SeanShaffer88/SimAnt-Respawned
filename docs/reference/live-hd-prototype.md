@@ -26,6 +26,8 @@ On the Surface, stationary food clusters that match the verified native pattern 
 
 The HD Surface also shades three verified pebble shapes and a larger boulder with cool highlights and warm granite tones. The boulder requires a complete native silhouette and an intact ring of surrounding soil. Only the original connected gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
 
+The verified active Surface anthill uses layered soil shading around its original opening. The redraw is limited to 196 native soil pixels and requires the complete anthill pattern, a clear cursor, and a clear player-ant area. The original entrance, gray stones, other craters, and occupied or clipped rims keep their prior appearance and behavior.
+
 Two verified Surface foliage sprites use subdued green accents in HD. The grass tuft and fern keep their native shape, position, and shadows. Clipped or obscured foliage keeps its original artwork.
 
 A panned east Surface frame can use HD when the visible native minimap outline, every classified terrain sample in the full minimap slice, and the projected Yellow Ant pose all agree. The terrain witness is the second legacy buffer. The east redraw uses the original ground pattern and verified food and pebble silhouettes. Unconfirmed east terrain retains its DOS artwork.

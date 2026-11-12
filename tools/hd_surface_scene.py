@@ -1,7 +1,6 @@
 """Corroborate a panned east Surface scene with the native framebuffer."""
 
-from hd_actors import PLAYER_CENTER, PLAYER_WINDOW, player_support
-from hd_cursor import matched_cursor_raster
+from hd_actors import cursor_clear_of_player, player_support
 from verify_synchronized_scene import CAPACITY, SURFACE, TERRAIN_START
 
 
@@ -48,18 +47,6 @@ def _secondary_terrain_matches(pixel, payload):
     return classified >= 1800
 
 
-def _cursor_clear(frame, center):
-    raster = matched_cursor_raster(frame)
-    if not raster:
-        return False
-    width, height = PLAYER_WINDOW
-    left = 6 * (center[0] - PLAYER_CENTER[0])
-    top = 2 * (center[1] - PLAYER_CENTER[1])
-    return all(not (top <= y < top + height * 2
-                    and x < left + width * 6 and x + len(rgb) > left)
-               for y, x, rgb in raster)
-
-
 def verify_east_surface(frame, legacy_payload, legacy_observation, scent_mode):
     """Return an east Surface observation only when every native witness agrees."""
     if (scent_mode != 255 or legacy_observation.get("edit") != SURFACE
@@ -87,6 +74,6 @@ def verify_east_surface(frame, legacy_payload, legacy_observation, scent_mode):
         **legacy_observation, "result": "accepted", "visible_ant": center,
         "terrain_layout": EAST_SURFACE_LAYOUT, "scent_mode": scent_mode,
     }
-    if not _cursor_clear(frame, center) or not player_support(frame, legacy_payload, observation)[0]:
+    if not cursor_clear_of_player(frame, center) or not player_support(frame, legacy_payload, observation)[0]:
         return None
     return observation

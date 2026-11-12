@@ -44,6 +44,21 @@ BORDER_COLORS = {CYAN: b"\x69\xaf\xbe"}
 DROPDOWN_COLORS = {GRAY, CYAN, b"\xff\xff\xff", b"\xff\xf3\x04", b"\x00\x00\x00", b"\xff\x65\x00"}
 CURSOR_SHADOW = ((2, 3), (4, 3), (2, 4), (3, 4), (5, 4), (2, 5),
                  (4, 5), (6, 5), (2, 6), (5, 6), (7, 6))
+SCENT_BOUNDS = (64, 188, 149, 296)
+SCENT_BORDER_SHA256 = "e0c605c00fa68ba71ae7d80641b8d15fed72e988cc9af4983a419ab860df56dd"
+SCENT_HIGHLIGHT = b"\xdf\x08\x04"
+SCENT_BACKGROUND = b"\xc3\xc3\xc3"
+SCENT_ROW_STARTS = range(192, 293, 17)
+SCENT_SELECTED_COLORS = {
+    SCENT_HIGHLIGHT: SELECTED_COLORS[CYAN],
+    SCENT_BACKGROUND: SELECTED_COLORS[GRAY],
+    b"\x45\x00\xa6": SELECTED_COLORS[GRAY],
+    b"\x00\x65\x10": SELECTED_COLORS[GRAY],
+}
+SCENT_LABEL_COLORS = {
+    SCENT_BACKGROUND: BUTTON_COLORS[SCENT_BACKGROUND],
+    SCENT_HIGHLIGHT: b"\xa5\x26\x25",
+}
 
 
 def _rgb_row(raw, pitch, y, left, right):
@@ -51,6 +66,65 @@ def _rgb_row(raw, pitch, y, left, right):
     rgb = bytearray((right - left) * 3)
     rgb[0::3], rgb[1::3], rgb[2::3] = data[2::4], data[1::4], data[0::4]
     return bytes(rgb)
+
+
+def matching_scent_menu(frame):
+    """Return the native Scent label rows and their selected index."""
+    width, height, pitch, pixel_format, raw = frame
+    if (width, height, pixel_format) != (640, 480, 1) or pitch < width * 4 or len(raw) < pitch * height:
+        return None
+    left, top, right, bottom = SCENT_BOUNDS
+    corner = top * pitch + left * 4
+    if raw[corner:corner + 3] != SCENT_BACKGROUND:
+        return None
+
+    border = bytearray()
+    for y in range(top, bottom):
+        if y < 191:
+            border.extend(_rgb_row(raw, pitch, y, left, right))
+        elif y >= 294:
+            # The cursor can cross the middle of the bottom edge on R-Trail.
+            border.extend(_rgb_row(raw, pitch, y, left, 96))
+            border.extend(_rgb_row(raw, pitch, y, 124, right))
+        else:
+            border.extend(_rgb_row(raw, pitch, y, left, 67))
+            border.extend(_rgb_row(raw, pitch, y, 146, right))
+    if sha256(border).hexdigest() != SCENT_BORDER_SHA256:
+        return None
+
+    selected = None
+    labels = []
+    for index, y in enumerate(SCENT_ROW_STARTS):
+        edge = _rgb_row(raw, pitch, y, 67, 68)
+        expected = SCENT_BACKGROUND
+        if edge == b"\xff\xff\xff" and selected is None:
+            selected = index
+            expected = SCENT_HIGHLIGHT
+        elif edge != b"\x00\x00\x00":
+            return None
+        for sample in (y, y + 15):
+            fill = _rgb_row(raw, pitch, sample, 101, 145)
+            if sum(fill[x:x + 3] == expected for x in range(0, len(fill), 3)) < 31:
+                return None
+        # Off has no icon. For the other rows, keep the entire icon column.
+        label_left = 68 if index == 0 else 101
+        rows = tuple(_rgb_row(raw, pitch, row, label_left, 145) for row in range(y, y + 16))
+        labels.append((label_left, y, rows))
+    return (labels, selected) if selected is not None else None
+
+
+def paint_scent_menu(pixels, width, menu):
+    """Restyle only verified native Scent labels in the doubled raster."""
+    labels, selected = menu
+    stride = width * 6
+    for index, (left, top, rows) in enumerate(labels):
+        palette = SCENT_SELECTED_COLORS if index == selected else SCENT_LABEL_COLORS
+        for y, row in enumerate(rows, top):
+            colors = (row[x:x + 3] for x in range(0, len(row), 3))
+            styled = b"".join(palette.get(color, color) * 2 for color in colors)
+            offset = y * 2 * stride + left * 6
+            pixels[offset:offset + len(styled)] = styled
+            pixels[offset + stride:offset + stride + len(styled)] = styled
 
 
 def _cursor_shadow(raw, pitch, width, bottom):

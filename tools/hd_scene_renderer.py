@@ -5,7 +5,10 @@ from random import Random
 
 from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_trails import paint_trails
-from hd_ui import MENU_BAR, matching_dropdown, matching_ui, paint_dropdown, paint_ui
+from hd_ui import (
+    MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
+    paint_dropdown, paint_scent_menu, paint_ui,
+)
 from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
 
 
@@ -65,11 +68,16 @@ def _doubled_rgb(width, height, channels):
 def render_dropdown_only(frame):
     """Restyle a verified open menu over a 2× native frame."""
     menu = matching_dropdown(frame)
-    if menu is None:
-        return None
+    if menu is not None:
+        paint = paint_dropdown
+    else:
+        menu = matching_scent_menu(frame)
+        if menu is None:
+            return None
+        paint = paint_scent_menu
     width, height = frame[:2]
     pixels = _doubled_rgb(width, height, _rgb_channels(frame))
-    paint_dropdown(pixels, width, menu)
+    paint(pixels, width, menu)
     return _ppm(width * 2, height * 2, pixels)
 
 

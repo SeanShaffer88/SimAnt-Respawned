@@ -1,6 +1,6 @@
 # Live Classic and HD Prototype
 
-This Windows prototype opens in borderless fullscreen and runs the pinned SimAnt DOS Quick Game in one DOSBox Pure session. The game is centered at a whole-number scale. F11 and the display button switch the host presentation. Both modes use the original coordinate system and guest inputs. Use Quit or Alt+F4 to close the host.
+This Windows prototype opens in borderless fullscreen and runs the pinned SimAnt DOS Quick Game in one DOSBox Pure session. The game is centered below the toolbar at the largest whole-number scale that fits, up to 4×. Classic and HD share the same image bounds and native mouse coordinates. F11 and the display button switch the host presentation. Use Quit or Alt+F4 to close the host.
 
 HD uses the synchronized capture to redraw verified Surface, Black Nest, and Red Nest terrain at twice the original resolution. The game keeps its original controls, minimap, and entity positions. The current Classic frame remains available whenever the scene cannot be verified or an unsupported view is active.
 

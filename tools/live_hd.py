@@ -390,6 +390,36 @@ def native_point(x, y, left, top, width, height, native_width, native_height):
     return ((x - left) * native_width // width, (y - top) * native_height // height)
 
 
+def hd_3x_ppm(ppm):
+    """Scale the 2× native HD frame directly to 3× with nearest-neighbor RGB."""
+    width, height = NATIVE_SIZE
+    source_stride, target_stride = width * 6, width * 9
+    source_header = f"P6\n{width * 2} {height * 2}\n255\n".encode("ascii")
+    if not ppm.startswith(source_header) or len(ppm) != len(source_header) + source_stride * height * 2:
+        raise ValueError("Expected the native 2× HD frame")
+
+    header = f"P6\n{width * 3} {height * 3}\n255\n".encode("ascii")
+    target = bytearray(len(header) + target_stride * height * 3)
+    target[:len(header)] = header
+    row = bytearray(target_stride)
+    destination = len(header)
+    for y in range(height * 2):
+        start = len(source_header) + y * source_stride
+        scan = ppm[start:start + source_stride]
+        # Repeat the first sample in each pair on both axes, preserving exact RGB.
+        for channel in range(3):
+            first = scan[channel::6]
+            row[channel::9] = first
+            row[channel + 3::9] = first
+            row[channel + 6::9] = scan[channel + 3::6]
+        target[destination:destination + target_stride] = row
+        destination += target_stride
+        if y % 2 == 0:
+            target[destination:destination + target_stride] = row
+            destination += target_stride
+    return bytes(target)
+
+
 class GameWindow:
     def __init__(self, root, session):
         import tkinter as tk
@@ -447,7 +477,7 @@ class GameWindow:
     def resize_viewport(self, event):
         self.display_width, self.display_height = event.width, event.height
         width, height = NATIVE_SIZE
-        scale = 2 if event.width >= 2 * width and event.height >= 2 * height else 1
+        scale = max(1, min(4, event.width // width, event.height // height))
         if scale != self.scale:
             self.scale = scale
             self.painted_frame = None
@@ -530,11 +560,15 @@ class GameWindow:
         kind, ppm = self.session.presentation()
         if ppm is None:
             return
+        if kind == "HD" and self.scale == 3:
+            ppm = hd_3x_ppm(ppm)
         image = self.tk.PhotoImage(data=ppm, format="PPM")
         if kind == "HD" and self.scale == 1:
             image = image.subsample(2)
-        elif kind == "Classic" and self.scale == 2:
+        elif kind == "HD" and self.scale == 4:
             image = image.zoom(2)
+        elif kind == "Classic" and self.scale > 1:
+            image = image.zoom(self.scale)
         self.image = image
         self.native_image_size = frame[:2]
         self.place_image()

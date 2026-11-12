@@ -9,7 +9,7 @@ import sys
 import time
 
 from hd_red_nest_scene import verify_occupied_red
-from hd_surface_scene import verify_east_surface
+from hd_surface_scene import verify_east_surface, verify_full_surface
 from hd_trails import SCENT_MODE_OFFSET, SUPPORTED_TRAIL_MODES, render_trails
 from replay_quick_game import (
     ARCHIVE_SHA256,
@@ -154,6 +154,12 @@ class LiveHost(Host):
         east = verify_east_surface(frame, legacy_payload, legacy_observation, captured[-1])
         if east is not None and not overlay_open(frame):
             return frame, legacy_payload, east
+        full = verify_full_surface(frame, legacy_payload, legacy_observation, captured[-1])
+        if full is not None and not overlay_open(frame):
+            from hd_scene_renderer import neutral_overlay_open
+
+            if not neutral_overlay_open(frame):
+                return frame, legacy_payload, full
         occupied_red = verify_occupied_red(frame, legacy_payload, legacy_observation, captured[-1])
         if occupied_red is not None and not overlay_open(frame):
             return frame, legacy_payload, occupied_red

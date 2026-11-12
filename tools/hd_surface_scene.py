@@ -1,13 +1,23 @@
-"""Corroborate a panned east Surface scene with the native framebuffer."""
+"""Corroborate additional Surface scenes with the native framebuffer."""
 
-from hd_actors import cursor_clear_of_player, player_support
+from hashlib import sha256
+
+from hd_actors import PLAYER_HEADING, cursor_clear_of_player, player_support
 from verify_synchronized_scene import CAPACITY, SURFACE, TERRAIN_START
 
 
 EAST_SURFACE_LAYOUT = "legacy-secondary-surface"
+FULL_SURFACE_LAYOUT = "full-surface-raster"
+FULL_SURFACE_CAMERA = (25, 21)
 _PINK = b"\x86\x08\xf3"
 _ORANGE = b"\0\x65\xff"
 _MINIMAP_COLORS = {b"\x38\x71\x92": 11, b"\x82" * 3: 13}
+_FULL_SURFACE_WITNESSES = (
+    ((137, 25, 294, 40), "0f4a0259c4da8c3224c1d0dec8a6dd8879db07b7735a46c79c8e6c376b825d75"),
+    ((192, 90, 222, 122), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
+)
+_SOIL_BGR = ((4, 44, 85), (56, 113, 146))
+_SOIL_BANDS = ((42, 126), (126, 210), (210, 294), (294, 377))
 
 
 def east_surface_camera(camera_x, camera_y):
@@ -77,3 +87,57 @@ def verify_east_surface(frame, legacy_payload, legacy_observation, scent_mode):
     if not cursor_clear_of_player(frame, center) or not player_support(frame, legacy_payload, observation)[0]:
         return None
     return observation
+
+
+def _rgb_digest(raw, pitch, bounds):
+    left, top, right, bottom = bounds
+    native = b"".join(raw[y * pitch + left * 4:y * pitch + right * 4] for y in range(top, bottom))
+    rgb = bytearray(len(native) // 4 * 3)
+    for channel in range(3):
+        rgb[channel::3] = native[2 - channel::4]
+    return sha256(rgb).hexdigest()
+
+
+def _dense_phase_soil(raw, pitch):
+    """Require broad native checker coverage across the original Edit pane."""
+    for top, bottom in _SOIL_BANDS:
+        classified = 0
+        for y in range(top, bottom):
+            row = raw[y * pitch + 64 * 4:y * pitch + 416 * 4]
+            for phase in (0, 1):
+                expected = _SOIL_BGR[(y + phase) % 2]
+                start = 4 * phase
+                classified += sum(pixel == expected for pixel in zip(
+                    row[start::8], row[start + 1::8], row[start + 2::8]
+                ))
+        if classified < 20000:
+            return False
+    return True
+
+
+def verify_full_surface(frame, legacy_payload, legacy_observation, scent_mode):
+    """Corroborate the observed adult Full Game emergence with native pixels."""
+    if (scent_mode != 255 or legacy_observation.get("edit") != SURFACE
+            or legacy_observation.get("map") != SURFACE
+            or legacy_observation.get("views") != [SURFACE] * 3
+            or len(legacy_payload) != CAPACITY):
+        return None
+    camera_x, camera_y = legacy_observation["camera"]
+    ant_x, ant_y, ant_layer = legacy_observation["ant"]
+    if (camera_x, camera_y) != FULL_SURFACE_CAMERA or ant_layer != SURFACE:
+        return None
+    if int.from_bytes(legacy_payload[PLAYER_HEADING:PLAYER_HEADING + 2], "little") != 2:
+        return None
+    width, height, pitch, fmt, raw = frame
+    if (width, height, fmt) != (640, 480, 1) or pitch < 4 * width or len(raw) < pitch * height:
+        return None
+    if not all(_rgb_digest(raw, pitch, bounds) == expected for bounds, expected in _FULL_SURFACE_WITNESSES):
+        return None
+    center = [71 + 16 * (ant_x - camera_x), 49 + 16 * (ant_y - camera_y)]
+    observation = {
+        **legacy_observation, "result": "accepted", "visible_ant": center,
+        "terrain_layout": FULL_SURFACE_LAYOUT, "scent_mode": scent_mode,
+    }
+    if not cursor_clear_of_player(frame, center) or not player_support(frame, legacy_payload, observation)[0]:
+        return None
+    return observation if _dense_phase_soil(raw, pitch) else None

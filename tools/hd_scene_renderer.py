@@ -11,7 +11,7 @@ from hd_pebbles import paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
 from hd_red_queen import paint_red_queen
-from hd_surface_scene import EAST_SURFACE_LAYOUT, east_surface_camera
+from hd_surface_scene import EAST_SURFACE_LAYOUT, FULL_SURFACE_CAMERA, FULL_SURFACE_LAYOUT, east_surface_camera
 from hd_trails import paint_trails
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
@@ -249,6 +249,11 @@ def _has_neutral_overlay(channels):
     return False
 
 
+def neutral_overlay_open(frame):
+    """Check the RGB overlay guard without relying on the unused XRGB byte."""
+    return _has_neutral_overlay(_rgb_channels(frame))
+
+
 def render_hd(frame, payload, observation):
     """Encode a 2× frame with confirmed terrain and verified controls."""
     width, height = frame[:2]
@@ -259,9 +264,13 @@ def render_hd(frame, payload, observation):
         raise ValueError("HD rendering requires an accepted Surface, Black Nest, or Red Nest sample")
     camera_x, camera_y = observation["camera"]
     east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
+    full = observation.get("terrain_layout") == FULL_SURFACE_LAYOUT
+    surface_raster_only = east or full
     occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported east Surface camera")
+    if full and (view != SURFACE or (camera_x, camera_y) != FULL_SURFACE_CAMERA):
+        raise ValueError("Unsupported Full Game Surface camera")
     if not east and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")
     red_masks = occupied_red_raster(frame) if occupied_red else None
@@ -304,7 +313,7 @@ def render_hd(frame, payload, observation):
         if not overlay and occupied_red and RED_RASTER_TOP <= y < RED_RASTER_BOTTOM:
             masks = tuple(_wide_mask(mask) for mask in red_masks[y - RED_RASTER_TOP])
         elif not overlay and not occupied_red and TOP <= y < BOTTOM:
-            if not east and (y - TOP) % 16 == 0:
+            if not surface_raster_only and (y - TOP) % 16 == 0:
                 tile_y = camera_y + (y - TOP) // 16
                 tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
             source = [row[LEFT:RIGHT] for row in rows]
@@ -317,7 +326,7 @@ def render_hd(frame, payload, observation):
                 isolated = (soil >> 8) & (soil << 8) & above & below
                 earth = (soil | (_palette_mask(source, ((65, 65, 65),)) & isolated)) & tile_masks[0]
             scene_mask = NO_RESIZE_GRIP if y >= 362 else -1
-            detail = 0 if east else _palette_mask(source, detail_palette) & tile_masks[1]
+            detail = 0 if surface_raster_only else _palette_mask(source, detail_palette) & tile_masks[1]
             masks = (
                 _wide_mask(earth & scene_mask),
                 _wide_mask(detail & scene_mask),

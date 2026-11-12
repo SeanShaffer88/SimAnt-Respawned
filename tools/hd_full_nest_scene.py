@@ -29,9 +29,11 @@ def full_black_nest_camera(camera_x, camera_y):
     return 0 <= camera_x <= 42 and camera_y == 0
 
 
-def _palette_rows(raw, pitch):
-    for y in range(NEST_PAINT_TOP, NEST_PAINT_BOTTOM):
-        row = raw[y * pitch + 4 * EDIT_LEFT:y * pitch + 4 * EDIT_RIGHT]
+def nest_palette_rows(raw, pitch, bounds):
+    """Yield exact dark, light, gray, and gold native pixel masks per row."""
+    left, top, right, bottom = bounds
+    for y in range(top, bottom):
+        row = raw[y * pitch + 4 * left:y * pitch + 4 * right]
         channels = row[::4], row[1::4], row[2::4]
         matches = []
         for color in _COLORS:
@@ -41,7 +43,8 @@ def _palette_rows(raw, pitch):
         yield tuple(matches)
 
 
-def _noncollinear(cells):
+def noncollinear_tiles(cells):
+    """Check whether the confirmed terrain contains a bend or branch."""
     x, y = cells[0]
     next_x, next_y = cells[1]
     return any((next_x - x) * (other_y - y) != (next_y - y) * (other_x - x)
@@ -55,7 +58,8 @@ def full_black_nest_raster(frame, terrain, camera, ant):
     if ((width, height, fmt) != (640, 480, 1) or pitch < 4 * width or len(raw) < pitch * height
             or len(terrain) != NEST_TERRAIN_BYTES or not full_black_nest_camera(*camera)):
         return None
-    rows = tuple(_palette_rows(raw, pitch))
+    bounds = EDIT_LEFT, NEST_PAINT_TOP, EDIT_RIGHT, NEST_PAINT_BOTTOM
+    rows = tuple(nest_palette_rows(raw, pitch, bounds))
     camera_x, camera_y = camera
     ant_x, ant_y = ant
     occupied = ant_x - camera_x, ant_y - camera_y
@@ -89,26 +93,32 @@ def full_black_nest_raster(frame, terrain, camera, ant):
                 floor_columns |= columns
         masks.extend((dark & soil_columns, light & floor_columns) for dark, light, _, _ in block)
     if (sum(soil_by_depth) < 350 or sum(count >= 60 for count in soil_by_depth) < 3 or len(floor_cells) < 5
-            or min(floor_by_code.values()) < 2 or not _noncollinear(floor_cells)):
+            or min(floor_by_code.values()) < 2 or not noncollinear_tiles(floor_cells)):
         return None
 
+    exclude_nest_footprints(frame, masks, bounds, _player_center(*occupied))
+    return tuple(masks)
+
+
+def exclude_nest_footprints(frame, masks, bounds, center):
+    """Preserve the native cursor support and the complete projected player window."""
+    mask_left, top, mask_right, bottom = bounds
+
     def clear_span(y, left, right):
-        left, right = max(EDIT_LEFT, left), min(EDIT_RIGHT, right)
-        if left < right and NEST_PAINT_TOP <= y < NEST_PAINT_BOTTOM:
-            keep = ~(((1 << (8 * (right - left))) - 1) << (8 * (left - EDIT_LEFT)))
-            index = y - NEST_PAINT_TOP
+        left, right = max(mask_left, left), min(mask_right, right)
+        if left < right and top <= y < bottom:
+            keep = ~(((1 << (8 * (right - left))) - 1) << (8 * (left - mask_left)))
+            index = y - top
             dark, light = masks[index]
             masks[index] = dark & keep, light & keep
 
     for y, left, rgb in matched_cursor_raster(frame)[::2]:
         clear_span(y // 2, left // 6, (left + len(rgb)) // 6)
     # Preserve any native shadow or outline in the complete projected pose window.
-    center = _player_center(*occupied)
     width, height = PLAYER_WINDOW
     player_x, player_y = (value - offset for value, offset in zip(center, PLAYER_CENTER))
     for y in range(player_y, player_y + height):
         clear_span(y, player_x, player_x + width)
-    return tuple(masks)
 
 
 def _player_center(tile_x, tile_y):

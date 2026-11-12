@@ -10,7 +10,7 @@ import time
 
 from hd_full_nest_scene import verify_full_black_nest
 from hd_red_nest_scene import verify_occupied_red
-from hd_surface_scene import verify_east_surface, verify_full_surface, verify_panned_full_surface
+from hd_surface_scene import quick_game_title_matches, verify_east_surface, verify_full_surface, verify_panned_full_surface
 from hd_trails import (
     RED_TRAIL,
     SCENT_MODE_OFFSET,
@@ -39,6 +39,7 @@ NATIVE_SIZE = (640, 480)
 # The native Load Game path places both tile buffers earlier in conventional RAM.
 # Capture both layouts in the same video-boundary sample using two union ranges.
 LOADED_TERRAIN_BASES = (0x6E400, 0x83DE0)
+LOADED_QUICK_ROUNDTRIP_OFFSETS = (0, 0x84520 - LOADED_TERRAIN_BASES[1])
 TERRAIN_BYTES = RANGES[-1][1]
 LEGACY_OFFSETS = tuple(base - loaded for (base, _), loaded in zip(RANGES[-2:], LOADED_TERRAIN_BASES))
 FULL_TERRAIN_OFFSET = 0x6E430 - LOADED_TERRAIN_BASES[0]
@@ -163,6 +164,22 @@ class LiveHost(Host):
             return frame, payload, {
                 **observation, "terrain_layout": layout, "scent_mode": captured[-1],
             }
+        view = observation.get("edit")
+        if (legacy_observation["result"] == observation["result"] == "terrain-unconfirmed"
+                and view in (SURFACE, NEST) and observation.get("map") == view
+                and observation["views"] == [view] * 3
+                and quick_game_title_matches(frame[4], frame[2]) and not overlay_open(frame)):
+            from hd_scene_renderer import neutral_overlay_open
+
+            if not neutral_overlay_open(frame):
+                # Resuming a save made after a view round trip can move the second
+                # buffer within the existing capture. Both terrain copies still have to agree.
+                payload = _terrain_payload(captured, LOADED_QUICK_ROUNDTRIP_OFFSETS)
+                alternate = classify(frame, payload, surface_rows=LOADED_SURFACE_ROWS)
+                if alternate["result"] == "accepted":
+                    return frame, payload, {
+                        **alternate, "terrain_layout": "loaded", "scent_mode": captured[-1],
+                    }
         east = verify_east_surface(frame, legacy_payload, legacy_observation, captured[-1])
         if east is not None and not overlay_open(frame):
             return frame, legacy_payload, east

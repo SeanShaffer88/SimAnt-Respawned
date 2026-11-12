@@ -67,7 +67,7 @@ Use **File > Save As** in SimAnt to name a new save, then click **Save**. Use Qu
 
 One running instance owns each save directory. DOSBox Pure works on a copy under the run's scratch directory. After a clean close, the host checks the new archive and replaces the profile copy only when it has changed. A failed run or failed update leaves the prior profile in place. Keep both directories local because they can contain original game data. A launch without `--save-dir` keeps its saves in that run's scratch directory.
 
-The pinned DOS game places its terrain buffers at different addresses after a native Quick Game load. The frontend captures both layouts at the same video boundary and uses the first layout whose two terrain copies agree with the scene. For the loaded Surface layout, verification samples the upper 51 minimap rows because the Caste Control window can cover the lower rows. Both buffers must match every classified sample, with at least 1,800 samples. Mixed or unconfirmed scenes still display Classic.
+The pinned DOS game places its terrain buffers at different addresses after a native Quick Game load. The frontend captures these ranges at the same video boundary and uses the first verified pair of terrain copies. Resuming a save made after switching to Surface and back to Black Nest can move the second terrain buffer again. In a clear Quick Game Edit view, the frontend checks that fixed location if neither standard pair verifies. For the loaded Surface layout, verification samples the upper 51 minimap rows because the Caste Control window can cover the lower rows. Both buffers must match every classified sample, with at least 1,800 samples. Mixed or unconfirmed scenes still display Classic.
 
 ## Verify
 

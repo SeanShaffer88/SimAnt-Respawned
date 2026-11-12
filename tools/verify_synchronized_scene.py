@@ -26,7 +26,7 @@ RANGES = ((0x3DF58, 1), (0x514AE, 1), (0x586E2, 1),
 SCALAR_START = 3
 TERRAIN_START = SCALAR_START + RANGES[3][1]
 CAPACITY = sum(length for _, length in RANGES)
-SURFACE, NEST = 1, 2
+SURFACE, NEST, RED_NEST = 1, 2, 3
 
 
 class CaptureHost(Host):
@@ -160,12 +160,16 @@ def classify(frame, data, *, surface_rows=64):
                          for x, y in ((20, 92), (20, 97), (22, 92)))
     nest_button = all(pixel(x, y) == (69, 0, 166)
                       for x, y in ((21, 119), (23, 122), (35, 123)))
+    red_nest_button = all(pixel(x, y) == (69, 0, 166)
+                          for x, y in ((43, 119), (45, 122), (57, 123)))
     dirt = sum(pixel(x, y) == (85, 44, 4)
                for x in range(80, 400, 13) for y in range(129, 362, 13))
     map_pixels = [pixel(x, y) for x, y in ((460, 150), (500, 280), (535, 242), (550, 95), (565, 315))]
-    edit = SURFACE if surface_button and not nest_button and dirt <= 260 else None
-    if nest_button and not surface_button and dirt >= 315:
-        edit = NEST
+    edit = None
+    if surface_button and not (nest_button or red_nest_button) and dirt <= 260:
+        edit = SURFACE
+    if not surface_button and nest_button != red_nest_button and dirt >= 315:
+        edit = NEST if nest_button else RED_NEST
     map_view = SURFACE if map_pixels.count((146, 113, 56)) >= 4 else None
     if map_pixels.count((0, 0, 0)) >= 4:
         map_view = NEST
@@ -179,7 +183,10 @@ def classify(frame, data, *, surface_rows=64):
     report = {"edit": edit, "map": map_view, "views": modes, "ant": ant, "camera": camera}
     if edit is None or map_view is None:
         return {**report, "result": "unknown"}
-    if edit != map_view or modes != [edit] * 3:
+    # The minimap confirms the underground layout. The Edit button and view bytes
+    # distinguish the colonies.
+    expected_map = NEST if edit == RED_NEST else edit
+    if expected_map != map_view or modes != [edit] * 3:
         return {**report, "result": "mixed"}
     if ant[2] not in (SURFACE, NEST) or any(v >= 64 for v in (*ant[:2], *camera)):
         return {**report, "result": "unknown"}

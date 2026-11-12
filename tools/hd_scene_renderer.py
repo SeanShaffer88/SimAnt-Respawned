@@ -1,4 +1,4 @@
-"""Presentation-only raster for the verified DOS Surface and Black Nest views."""
+"""Presentation-only raster for the verified DOS Surface and underground views."""
 
 from functools import cache
 from random import Random
@@ -9,7 +9,7 @@ from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
     paint_dropdown, paint_scent_menu, paint_ui,
 )
-from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
+from verify_synchronized_scene import CAPACITY, NEST, RED_NEST, SURFACE, TERRAIN_START
 
 
 # The fixture's Edit pane and terrain grid use different left edges.
@@ -244,8 +244,8 @@ def render_hd(frame, payload, observation):
     view = observation.get("edit")
     if (width, height) != (640, 480) or len(payload) != CAPACITY:
         raise ValueError("HD rendering requires a complete 640×480 scene sample")
-    if observation.get("result") != "accepted" or view not in (SURFACE, NEST):
-        raise ValueError("HD rendering requires an accepted Surface or Black Nest sample")
+    if observation.get("result") != "accepted" or view not in (SURFACE, NEST, RED_NEST):
+        raise ValueError("HD rendering requires an accepted Surface, Black Nest, or Red Nest sample")
     camera_x, camera_y = observation["camera"]
     if not 0 <= camera_x < 64 or not 0 <= camera_y < 64:
         raise ValueError("Unsupported scene camera")

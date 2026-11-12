@@ -18,7 +18,7 @@ from replay_quick_game import (
     verify_file,
 )
 from save_profile import SaveProfile, SaveProfileError
-from verify_synchronized_scene import RANGES, SURFACE, TERRAIN_START, classify
+from verify_synchronized_scene import NEST, RANGES, SURFACE, TERRAIN_START, classify
 from windows_audio import WaveOut
 
 
@@ -165,6 +165,22 @@ class LiveHost(Host):
             return frame, captured[-1]
         return None
 
+    def verified_castes(self):
+        """Return a coherent Black Nest frame eligible for actor-only HD."""
+        pair = self.capture_pair()
+        if pair is None:
+            return None
+        frame, payload = pair
+        if payload[:3] != bytes((NEST, NEST, NEST)):
+            return None
+        observation = classify(frame, payload)
+        if (
+            observation["result"] == "terrain-unconfirmed"
+            and observation.get("edit") == observation.get("map") == NEST
+        ):
+            return frame
+        return None
+
     def read_view(self):
         pair = self.capture_pair()
         return pair[1][2] if pair else None
@@ -309,7 +325,7 @@ class LiveSession:
         self.host.run(1)
 
     def presentation(self):
-        from hd_scene_renderer import render_classic, render_hd
+        from hd_scene_renderer import render_caste_only, render_classic, render_hd
 
         frame = self.host.frame
         if frame is None:
@@ -321,6 +337,11 @@ class LiveSession:
             trail = self.host.verified_trail()
             if trail:
                 image = render_trails(*trail)
+                if image is not None:
+                    return "HD", image
+            castes = self.host.verified_castes()
+            if castes is not None:
+                image = render_caste_only(castes)
                 if image is not None:
                     return "HD", image
         return "Classic", render_classic(frame)

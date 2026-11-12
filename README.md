@@ -14,6 +14,7 @@ Native saves are stored in `data/profile` when you exit cleanly. Reopen the laun
 
 - [DOS build fingerprint](docs/reference/dos-build.json)
 - [Quick Game reference replay](docs/reference/quick-game.md)
+- [Quick Game victory replay](docs/reference/quick-game-win.md)
 - [Live DOS view probe](docs/reference/live-view-probe.md)
 - [DOS terrain, ant position, and view-switch verification](docs/reference/scene-state-verification.md)
 - [Synchronized DOS scene capture](docs/reference/synchronized-capture.md)

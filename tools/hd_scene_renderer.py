@@ -21,6 +21,7 @@ TEXTURE_REPEATS = 1 + (2 * (RIGHT - LEFT) + TEXTURE_SIZE - 1) // TEXTURE_SIZE
 WHITE_TILE = b"\xff" * 16
 BLACK_TILE = b"\x00" * 16
 SURFACE_GROUND = ((85, 44, 4), (146, 113, 56))
+SURFACE_EVEN_COLUMNS = int.from_bytes(b"\xff\x00" * ((RIGHT - LEFT) // 2), "little")
 SURFACE_STONE = ((65, 65, 65), (130, 130, 130), (195, 195, 195))
 NEST_EARTH = ((85, 44, 4),)
 NEST_TUNNEL = ((146, 113, 56),)
@@ -113,6 +114,24 @@ def _palette_mask(channels, palette):
         )
         result |= red & green & blue
     return result
+
+
+def _surface_soil_row(channels, y):
+    # LEFT is even. The DOS dither has a fixed phase in the framebuffer.
+    dark = _palette_mask(channels, SURFACE_GROUND[:1])
+    light = _palette_mask(channels, SURFACE_GROUND[1:])
+    if y % 2:
+        dark, light = light, dark
+    return (dark & SURFACE_EVEN_COLUMNS) | (light & ~SURFACE_EVEN_COLUMNS)
+
+
+def _surface_ground_mask(center, above, below, green):
+    # One byte per column. Shifts cannot carry a neighbor from another row.
+    left, right = center << 8, center >> 8
+    horizontal = left & right
+    vertical = above & below
+    two_neighbors = horizontal | vertical | ((left | right) & (above | below))
+    return (center & two_neighbors) | (green & horizontal & vertical)
 
 
 def _double(values):
@@ -235,19 +254,17 @@ def render_hd(frame, payload, observation):
     first = payload[TERRAIN_START:TERRAIN_START + MAP_BYTES]
     second = payload[TERRAIN_START + MAP_BYTES:]
     if view == SURFACE:
-        palettes = SURFACE_GROUND, SURFACE_STONE
+        detail_palette = SURFACE_STONE
         textures = (
             _texture((109, 95, 59), (78, 94, 55), 13, grass=True),
             _texture((113, 114, 108), (157, 160, 151), 29),
         )
-        speckle = ((0, 101, 16),)
     else:
-        palettes = NEST_EARTH, NEST_TUNNEL
+        detail_palette = NEST_TUNNEL
         textures = (
             _texture((76, 51, 38), (98, 67, 47), 47),
             _texture((148, 105, 65), (174, 131, 83), 73),
         )
-        speckle = ((65, 65, 65),)
 
     channels = _rgb_channels(frame)
     overlay = _has_neutral_overlay(channels)
@@ -255,7 +272,8 @@ def render_hd(frame, payload, observation):
     if not overlay:
         for y in range(TOP, BOTTOM):
             source = [channel[y * width + LEFT:y * width + RIGHT] for channel in channels]
-            soil_masks.append(_palette_mask(source, palettes[0]))
+            soil_masks.append(_surface_soil_row(source, y) if view == SURFACE
+                              else _palette_mask(source, NEST_EARTH))
 
     pixels = bytearray(width * height * 12)
     output_row_size = width * 6
@@ -269,14 +287,18 @@ def render_hd(frame, payload, observation):
                 tile_y = camera_y + (y - TOP) // 16
                 tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
             source = [row[LEFT:RIGHT] for row in rows]
-            earth = soil_masks[y - TOP]
-            if TOP < y < BOTTOM - 1:
-                isolated = (earth >> 8) & (earth << 8) & soil_masks[y - TOP - 1] & soil_masks[y - TOP + 1]
-                earth |= _palette_mask(source, speckle) & isolated
+            soil = soil_masks[y - TOP]
+            above = soil_masks[y - TOP - 1] if y > TOP else 0
+            below = soil_masks[y - TOP + 1] if y < BOTTOM - 1 else 0
+            if view == SURFACE:
+                earth = _surface_ground_mask(soil, above, below, _palette_mask(source, ((0, 101, 16),)))
+            else:
+                isolated = (soil >> 8) & (soil << 8) & above & below
+                earth = (soil | (_palette_mask(source, ((65, 65, 65),)) & isolated)) & tile_masks[0]
             scene_mask = NO_RESIZE_GRIP if y >= 362 else -1
             masks = (
-                _wide_mask(earth & tile_masks[0] & scene_mask),
-                _wide_mask(_palette_mask(source, palettes[1]) & tile_masks[1] & scene_mask),
+                _wide_mask(earth & scene_mask),
+                _wide_mask(_palette_mask(source, detail_palette) & tile_masks[1] & scene_mask),
             )
 
         wide_rows = [_double(row) for row in rows]

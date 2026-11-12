@@ -1,0 +1,212 @@
+"""Presentation-only raster for the verified DOS Surface and Black Nest views."""
+
+from functools import cache
+import math
+
+from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
+
+
+# The fixture's Edit pane and terrain grid use different left edges.
+LEFT, TOP, RIGHT, BOTTOM = 64, 42, 416, 377
+TILE_LEFT = 62
+MAP_BYTES = 8192
+TEXTURE_SIZE = 128
+WHITE_TILE = b"\xff" * 16
+BLACK_TILE = b"\x00" * 16
+SURFACE_GROUND = ((85, 44, 4), (146, 113, 56))
+SURFACE_STONE = ((65, 65, 65), (130, 130, 130), (195, 195, 195))
+NEST_EARTH = ((85, 44, 4),)
+NEST_TUNNEL = ((146, 113, 56),)
+OVERLAY_RUNS = tuple(bytes([tone]) * 40 for tone in (130, 195))
+NO_RESIZE_GRIP = (1 << (8 * (400 - LEFT))) - 1
+
+
+def _ppm(width, height, pixels):
+    return f"P6\n{width} {height}\n255\n".encode("ascii") + pixels
+
+
+def _rgb_channels(frame):
+    width, height, pitch, pixel_format, raw = frame
+    if pixel_format != 1 or width <= 0 or height <= 0 or pitch < width * 4:
+        raise ValueError("Expected a valid XRGB8888 software frame")
+    if len(raw) < pitch * height:
+        raise ValueError("Truncated software frame")
+    if pitch != width * 4:
+        raw = b"".join(raw[y * pitch:y * pitch + width * 4] for y in range(height))
+    return raw[2::4], raw[1::4], raw[0::4]
+
+
+def render_classic(frame):
+    """Encode the original XRGB frame as a native-size P6 image."""
+    width, height = frame[:2]
+    pixels = bytearray(width * height * 3)
+    for channel, values in enumerate(_rgb_channels(frame)):
+        pixels[channel::3] = values
+    return _ppm(width, height, pixels)
+
+
+@cache
+def _match_table(value):
+    table = bytearray(256)
+    table[value] = 255
+    return bytes(table)
+
+
+def _palette_mask(channels, palette):
+    """Compare exact RGB triples in bulk without interpreting unknown pixels."""
+    result = 0
+    for color in palette:
+        red, green, blue = (
+            int.from_bytes(values.translate(_match_table(tone)), "little")
+            for values, tone in zip(channels, color)
+        )
+        result |= red & green & blue
+    return result
+
+
+def _double(values):
+    wide = bytearray(len(values) * 2)
+    wide[0::2] = values
+    wide[1::2] = values
+    return wide
+
+
+@cache
+def _texture(base, variation, seed):
+    """Generate world-anchored earth or stone grain with layered tonal detail."""
+    rows = []
+    for y in range(TEXTURE_SIZE):
+        channels = [bytearray(), bytearray(), bytearray()]
+        for x in range(TEXTURE_SIZE):
+            grain = ((x * 421 + y * 163 + x * y * 37 + seed * 47) ^ (x * 71 + y * 89)) % 31
+            cloud = (
+                0.42 * math.sin(math.tau * (x + 2 * y) / 128)
+                + 0.24 * math.sin(math.tau * (3 * x - 5 * y) / 128)
+                + 0.16 * math.cos(math.tau * (11 * x + 4 * y) / 128)
+            )
+            shade = round(variation * (cloud + (grain - 15) / 52))
+            for channel, value in zip(channels, base):
+                channel.append(max(0, min(255, value + shade)))
+        rows.append(tuple(bytes(channel) * 7 for channel in channels))
+    return tuple(rows)
+
+
+def _tile_masks(first, second, stride, world_y, camera_x, view):
+    broad, specific = [], []
+    world_x = camera_x
+    for _ in range((RIGHT - TILE_LEFT + 15) // 16):
+        index = world_y * stride + world_x
+        terrain = first[index] if world_x < 64 and world_y < 64 and first[index] == second[index] else 0
+        if view == SURFACE:
+            broad.append(WHITE_TILE if terrain in (11, 13) else BLACK_TILE)
+            specific.append(WHITE_TILE if terrain == 13 else BLACK_TILE)
+        else:
+            broad.append(WHITE_TILE if terrain in (10, 12, 15) else BLACK_TILE)
+            specific.append(WHITE_TILE if terrain in (12, 15) else BLACK_TILE)
+        world_x += 1
+    clip_start = LEFT - TILE_LEFT
+    clip_end = RIGHT - TILE_LEFT
+    return tuple(int.from_bytes(b"".join(mask)[clip_start:clip_end], "little")
+                 for mask in (broad, specific))
+
+
+def _wide_mask(mask):
+    return int.from_bytes(_double(mask.to_bytes(RIGHT - LEFT, "little")), "little")
+
+
+def _paint(values, paint, mask, start):
+    if not mask:
+        return
+    begin, end = LEFT * 2, RIGHT * 2
+    original = int.from_bytes(values[begin:end], "little")
+    texture = int.from_bytes(paint[start:start + end - begin], "little")
+    values[begin:end] = (original ^ ((original ^ texture) & mask)).to_bytes(end - begin, "little")
+
+
+def _has_neutral_overlay(channels):
+    # A contiguous neutral panel can share the native stone palette. Keep the
+    # current Classic picture whenever that distinction is ambiguous.
+    for y in range(TOP, BOTTOM):
+        rows = [channel[y * 640 + LEFT:y * 640 + RIGHT] for channel in channels]
+        for run in OVERLAY_RUNS:
+            offset = rows[0].find(run)
+            while offset != -1:
+                if all(row.startswith(run, offset) for row in rows[1:]):
+                    return True
+                offset = rows[0].find(run, offset + 1)
+    return False
+
+
+def render_hd(frame, payload, observation):
+    """Encode a 2× frame, repainting only confirmed terrain and preserving native sprites."""
+    width, height = frame[:2]
+    view = observation.get("edit")
+    if (width, height) != (640, 480) or len(payload) != CAPACITY:
+        raise ValueError("HD rendering requires a complete 640×480 scene sample")
+    if observation.get("result") != "accepted" or view not in (SURFACE, NEST):
+        raise ValueError("HD rendering requires an accepted Surface or Black Nest sample")
+    camera_x, camera_y = observation["camera"]
+    if not 0 <= camera_x < 64 or not 0 <= camera_y < 64:
+        raise ValueError("Unsupported scene camera")
+
+    stride = 128 if view == SURFACE else 64
+    first = payload[TERRAIN_START:TERRAIN_START + MAP_BYTES]
+    second = payload[TERRAIN_START + MAP_BYTES:]
+    if view == SURFACE:
+        palettes = SURFACE_GROUND, SURFACE_STONE
+        textures = _texture((126, 92, 63), 31, 13), _texture((149, 155, 151), 37, 29)
+        speckle = ((0, 101, 16),)
+    else:
+        palettes = NEST_EARTH, NEST_TUNNEL
+        textures = _texture((93, 56, 40), 28, 47), _texture((160, 115, 76), 27, 73)
+        speckle = ((65, 65, 65),)
+
+    channels = _rgb_channels(frame)
+    overlay = _has_neutral_overlay(channels)
+    soil_masks = []
+    if not overlay:
+        for y in range(TOP, BOTTOM):
+            source = [channel[y * width + LEFT:y * width + RIGHT] for channel in channels]
+            soil_masks.append(_palette_mask(source, palettes[0]))
+
+    pixels = bytearray(width * height * 12)
+    output_row_size = width * 6
+    texture_x = (camera_x * 32 + (LEFT - TILE_LEFT) * 2) % TEXTURE_SIZE
+    for y in range(height):
+        begin, end = y * width, (y + 1) * width
+        rows = [values[begin:end] for values in channels]
+        masks = (0, 0)
+        if not overlay and TOP <= y < BOTTOM:
+            if (y - TOP) % 16 == 0:
+                tile_y = camera_y + (y - TOP) // 16
+                tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
+            source = [row[LEFT:RIGHT] for row in rows]
+            earth = soil_masks[y - TOP]
+            if TOP < y < BOTTOM - 1:
+                isolated = (earth >> 8) & (earth << 8) & soil_masks[y - TOP - 1] & soil_masks[y - TOP + 1]
+                earth |= _palette_mask(source, speckle) & isolated
+            scene_mask = NO_RESIZE_GRIP if y >= 362 else -1
+            masks = (
+                _wide_mask(earth & tile_masks[0] & scene_mask),
+                _wide_mask(_palette_mask(source, palettes[1]) & tile_masks[1] & scene_mask),
+            )
+
+        wide_rows = [_double(row) for row in rows]
+        original = bytearray(output_row_size)
+        for channel, values in enumerate(wide_rows):
+            original[channel::3] = values
+        if not any(masks):
+            offset = y * output_row_size * 2
+            pixels[offset:offset + output_row_size * 2] = original + original
+            continue
+        for sub_y in range(2):
+            texture_y = (camera_y * 32 + (y - TOP) * 2 + sub_y) % TEXTURE_SIZE
+            painted = bytearray(output_row_size)
+            for channel, original_values in enumerate(wide_rows):
+                values = original_values.copy()
+                for texture, mask in zip(textures, masks):
+                    _paint(values, texture[texture_y][channel], mask, texture_x)
+                painted[channel::3] = values
+            offset = (y * 2 + sub_y) * output_row_size
+            pixels[offset:offset + output_row_size] = painted
+    return _ppm(width * 2, height * 2, pixels)

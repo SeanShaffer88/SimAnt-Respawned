@@ -27,7 +27,10 @@ PLAYER_POSES = {
 NEST_POSES = {
     (23, 22, 79, "c16f940ba876f7ac6711d31ec257e60d1ecc3bdc34584a8dbbbdf38d26489255"): "queen",
     (13, 16, 70, "08ac3d5b5c5dab7ba3ae2dc5cdd18c0f7185007a06de5cf38e8e932739677d2a"): "soldier",
+    (15, 16, 61, "9f7e26ea05ff155879f358eb4c7aba14df526e2dc0fb36165a603cc574ba3855"): "soldier",
     (15, 15, 53, "a73a839c73f02586560f2f9524a1ed18a17b3a802bad9382027021461b839795"): "worker",
+    (15, 15, 53, "be8f9cab533e32f7d80cccfdd3eb99dbd95e7a68e146c7a42db38320399cea95"): "worker",
+    (13, 16, 64, "9ad894ad6cc90e0f84e3e6cd3271a040dd19044d42b3f8eec41f4c973a184a12"): "worker",
 }
 NEST_PALETTES = {
     "queen": (b"\x27\x1e\x28", b"\x64\x48\x58"),

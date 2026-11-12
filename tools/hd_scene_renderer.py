@@ -7,6 +7,7 @@ from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_cursor import paint_cursor
 from hd_food import paint_food
 from hd_pebbles import paint_pebbles
+from hd_surface_scene import EAST_SURFACE_LAYOUT, east_surface_camera
 from hd_trails import paint_trails
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
@@ -252,7 +253,10 @@ def render_hd(frame, payload, observation):
     if observation.get("result") != "accepted" or view not in (SURFACE, NEST, RED_NEST):
         raise ValueError("HD rendering requires an accepted Surface, Black Nest, or Red Nest sample")
     camera_x, camera_y = observation["camera"]
-    if not 0 <= camera_x < 64 or not 0 <= camera_y < 64:
+    east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
+    if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
+        raise ValueError("Unsupported east Surface camera")
+    if not east and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")
 
     stride = 128 if view == SURFACE else 64
@@ -283,12 +287,13 @@ def render_hd(frame, payload, observation):
     pixels = bytearray(width * height * 12)
     output_row_size = width * 6
     texture_x = (camera_x * 32 + (LEFT - TILE_LEFT) * 2) % TEXTURE_SIZE
+    tile_masks = (0, 0)
     for y in range(height):
         begin, end = y * width, (y + 1) * width
         rows = [values[begin:end] for values in channels]
         masks = (0, 0)
         if not overlay and TOP <= y < BOTTOM:
-            if (y - TOP) % 16 == 0:
+            if not east and (y - TOP) % 16 == 0:
                 tile_y = camera_y + (y - TOP) // 16
                 tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
             source = [row[LEFT:RIGHT] for row in rows]
@@ -301,9 +306,10 @@ def render_hd(frame, payload, observation):
                 isolated = (soil >> 8) & (soil << 8) & above & below
                 earth = (soil | (_palette_mask(source, ((65, 65, 65),)) & isolated)) & tile_masks[0]
             scene_mask = NO_RESIZE_GRIP if y >= 362 else -1
+            detail = 0 if east else _palette_mask(source, detail_palette) & tile_masks[1]
             masks = (
                 _wide_mask(earth & scene_mask),
-                _wide_mask(_palette_mask(source, detail_palette) & tile_masks[1] & scene_mask),
+                _wide_mask(detail & scene_mask),
             )
 
         wide_rows = [_double(row) for row in rows]

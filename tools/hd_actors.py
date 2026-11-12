@@ -66,7 +66,8 @@ def _paint_support(pixels, stride, points, base, highlight, phase):
                 pixels[offset:offset + 3] = highlight if lit else base
 
 
-def _player_support(frame, payload, observation):
+def player_support(frame, payload, observation):
+    """Return the exact native Yellow Ant pixels and render phase for a matched pose."""
     center = observation.get("visible_ant")
     if center is None:
         return (), 0
@@ -159,5 +160,5 @@ def paint_actors(pixels, frame, payload, observation):
     stride = frame[0] * 6
     if observation.get("edit") == NEST:
         paint_nest_supports(pixels, stride, nest_supports(frame))
-    points, phase = _player_support(frame, payload, observation)
+    points, phase = player_support(frame, payload, observation)
     _paint_support(pixels, stride, points, b"\xd9\x8f\x22", b"\xff\xec\x81", phase)

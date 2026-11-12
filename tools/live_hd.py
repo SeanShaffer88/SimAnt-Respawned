@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import time
 
+from hd_surface_scene import verify_east_surface
 from hd_trails import BLACK_TRAIL, SCENT_MODE_OFFSET, render_trails
 from replay_quick_game import (
     ARCHIVE_SHA256,
@@ -137,8 +138,9 @@ class LiveHost(Host):
         if captured is None:
             return None
         frame = self.frame
-        payload = _terrain_payload(captured, LEGACY_OFFSETS)
-        observation = classify(frame, payload)
+        legacy_payload = _terrain_payload(captured, LEGACY_OFFSETS)
+        legacy_observation = classify(frame, legacy_payload)
+        payload, observation = legacy_payload, legacy_observation
         layout = "legacy"
         if observation["result"] == "terrain-unconfirmed":
             payload = _terrain_payload(captured, (0, 0))
@@ -148,6 +150,9 @@ class LiveHost(Host):
             return frame, payload, {
                 **observation, "terrain_layout": layout, "scent_mode": captured[-1],
             }
+        east = verify_east_surface(frame, legacy_payload, legacy_observation, captured[-1])
+        if east is not None and not overlay_open(frame):
+            return frame, legacy_payload, east
         return None
 
     def verified_trail(self):

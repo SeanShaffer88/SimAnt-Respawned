@@ -174,6 +174,7 @@ def compare(classic, switching):
                                != (call, [640, 480], rgb) for row in (left, right)))
     scenes_match = all(left[name]["scene"] == right[name]["scene"] for name in left.keys() & right.keys())
     emerged = right["emerged-presentation"]
+    east = right["east-cursor-off"]
     victory = right["victory"]
     checks = {
         "opening_anchors_match": classic["opening_anchors"] == switching["opening_anchors"]
@@ -191,6 +192,8 @@ def compare(classic, switching):
         ],
         "emerged_frame_renders_hd": emerged["presentation"] == "HD"
         and emerged["presentation_dimensions"] == [1280, 960] and emerged["distinct_hd_pixels"],
+        "east_frame_renders_hd": east["presentation"] == "HD"
+        and east["presentation_dimensions"] == [1280, 960] and east["distinct_hd_pixels"],
         "victory_displays_native_with_hd_requested": victory["requested"] == "HD"
         and victory["presentation"] == "Classic" and victory["presentation_sha256"] == right["victory-classic"]["presentation_sha256"],
     }

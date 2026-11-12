@@ -6,7 +6,7 @@ HD uses the synchronized capture to redraw verified Surface and Black Nest terra
 
 The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. Verified tile and source-pixel masks preserve the original rock and tunnel boundaries and food.
 
-The HD Yellow Ant follows recognized native poses. The Black Nest redraw covers the labeled Black Queen silhouette and one verified pose each for workers and soldiers. Workers use charcoal with silver highlights. Soldiers use warmer bronze highlights. Each redraw follows the exact native pixels of the matching pose, and unmatched or occluded poses retain the DOS artwork.
+The HD Yellow Ant follows recognized native poses. The Black Nest redraw covers the labeled Black Queen silhouette, three verified worker movement poses, and two verified soldier movement poses. Workers use charcoal with silver highlights. Soldiers use warmer bronze highlights. The DOS game determines when each pose appears. Each redraw follows the exact native pixels of the matching pose, and unmatched or occluded poses retain the DOS artwork.
 
 When the Black Nest view is confirmed but its terrain is unconfirmed, HD can still redraw verified workers and soldiers over the doubled native frame. The DOS menu bar must match the resting menu, and the Edit pane must be clear of overlays.
 

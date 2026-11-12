@@ -18,6 +18,8 @@ On the Surface, stationary food clusters that match the verified native pattern 
 
 The HD Surface also shades three verified pebble shapes with cool highlights and warm granite tones. Only the original gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
 
+A panned east Surface frame can use HD when the visible native minimap outline, every classified terrain sample in the full minimap slice, and the projected Yellow Ant pose all agree. The terrain witness is the second legacy buffer. The east redraw uses the original ground pattern and verified food and pebble silhouettes. Unconfirmed east terrain retains its DOS artwork.
+
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 
 ## Local Inputs

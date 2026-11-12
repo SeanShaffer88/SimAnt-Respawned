@@ -1,0 +1,3 @@
+# These files preserve whitespace from unified-diff syntax and the upstream license.
+*.patch text eol=lf -whitespace
+COPYING text eol=lf -whitespace

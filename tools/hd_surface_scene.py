@@ -98,13 +98,20 @@ def verify_east_surface(frame, legacy_payload, legacy_observation, scent_mode):
     return observation
 
 
-def _rgb_digest(raw, pitch, bounds):
+def native_rgb_digest(raw, pitch, bounds):
+    """Hash an RGB rectangle independently of XRGB padding bytes."""
     left, top, right, bottom = bounds
     native = b"".join(raw[y * pitch + left * 4:y * pitch + right * 4] for y in range(top, bottom))
     rgb = bytearray(len(native) // 4 * 3)
     for channel in range(3):
         rgb[channel::3] = native[2 - channel::4]
     return sha256(rgb).hexdigest()
+
+
+def full_game_title_matches(raw, pitch):
+    """Match the complete native Full Game Edit window title."""
+    bounds, expected = _FULL_SURFACE_TITLE
+    return native_rgb_digest(raw, pitch, bounds) == expected
 
 
 def _dense_phase_soil(raw, pitch):
@@ -144,7 +151,7 @@ def verify_full_surface(frame, legacy_payload, legacy_observation, scent_mode):
     width, height, pitch, fmt, raw = frame
     if (width, height, fmt) != (640, 480, 1) or pitch < 4 * width or len(raw) < pitch * height:
         return None
-    if not all(_rgb_digest(raw, pitch, bounds) == expected for bounds, expected in (_FULL_SURFACE_TITLE, landmark)):
+    if not full_game_title_matches(raw, pitch) or native_rgb_digest(raw, pitch, landmark[0]) != landmark[1]:
         return None
     center = [71 + 16 * (ant_x - camera_x), 49 + 16 * (ant_y - camera_y)]
     observation = {
@@ -302,8 +309,7 @@ def verify_panned_full_surface(frame, legacy_payload, observation, scent_mode, t
     width, height, pitch, fmt, raw = frame
     if (width, height, fmt) != (640, 480, 1) or pitch < width * 4 or len(raw) < pitch * height:
         return None
-    title, expected = _FULL_SURFACE_TITLE
-    if _rgb_digest(raw, pitch, title) != expected:
+    if not full_game_title_matches(raw, pitch):
         return None
 
     # The independent Full Game terrain span comes from 0x6E430.

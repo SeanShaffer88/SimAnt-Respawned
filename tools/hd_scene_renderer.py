@@ -7,6 +7,10 @@ from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_cursor import paint_cursor
 from hd_foliage import paint_foliage
 from hd_food import paint_food
+from hd_full_nest_scene import (
+    FULL_BLACK_NEST_LAYOUT, NEST_GRID_X, NEST_GRID_Y, NEST_PAINT_BOTTOM, NEST_PAINT_TOP, NEST_TERRAIN_BYTES,
+    full_black_nest_camera, full_black_nest_raster,
+)
 from hd_pebbles import paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
@@ -271,6 +275,7 @@ def render_hd(frame, payload, observation):
     full_panned = observation.get("terrain_layout") == FULL_PANNED_SURFACE_LAYOUT
     surface_raster_only = east or full or full_panned
     occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
+    full_nest = observation.get("terrain_layout") == FULL_BLACK_NEST_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported east Surface camera")
     if full and (view != SURFACE or (camera_x, camera_y) not in FULL_SURFACE_CAMERAS):
@@ -286,6 +291,15 @@ def render_hd(frame, payload, observation):
     stride = 128 if view == SURFACE else 64
     first = payload[TERRAIN_START:TERRAIN_START + MAP_BYTES]
     second = payload[TERRAIN_START + MAP_BYTES:]
+    full_nest_masks = None
+    if full_nest:
+        if view != NEST or not full_black_nest_camera(camera_x, camera_y):
+            raise ValueError("Unsupported Full Game Black Nest camera")
+        full_nest_masks = full_black_nest_raster(
+            frame, first[:NEST_TERRAIN_BYTES], (camera_x, camera_y), tuple(observation["ant"][:2])
+        )
+        if full_nest_masks is None:
+            raise ValueError("Unsupported Full Game Black Nest terrain")
     if view == SURFACE:
         detail_palette = SURFACE_STONE
         textures = (
@@ -302,7 +316,7 @@ def render_hd(frame, payload, observation):
     channels = _rgb_channels(frame)
     overlay = _has_neutral_overlay(channels)
     soil_masks = []
-    if not overlay and not occupied_red:
+    if not overlay and not (occupied_red or full_nest):
         for y in range(TOP, BOTTOM):
             source = [channel[y * width + LEFT:y * width + RIGHT] for channel in channels]
             soil_masks.append(_surface_soil_row(source, y) if view == SURFACE
@@ -310,7 +324,8 @@ def render_hd(frame, payload, observation):
 
     pixels = bytearray(width * height * 12)
     output_row_size = width * 6
-    texture_x = (camera_x * 32 + (LEFT - TILE_LEFT) * 2) % TEXTURE_SIZE
+    tile_left, tile_top = (NEST_GRID_X, NEST_GRID_Y) if full_nest else (TILE_LEFT, TOP)
+    texture_x = (camera_x * 32 + (LEFT - tile_left) * 2) % TEXTURE_SIZE
     tile_masks = (0, 0)
     for y in range(height):
         begin, end = y * width, (y + 1) * width
@@ -318,7 +333,9 @@ def render_hd(frame, payload, observation):
         masks = (0, 0)
         if not overlay and occupied_red and RED_RASTER_TOP <= y < RED_RASTER_BOTTOM:
             masks = tuple(_wide_mask(mask) for mask in red_masks[y - RED_RASTER_TOP])
-        elif not overlay and not occupied_red and TOP <= y < BOTTOM:
+        elif not overlay and full_nest and NEST_PAINT_TOP <= y < NEST_PAINT_BOTTOM:
+            masks = tuple(_wide_mask(mask) for mask in full_nest_masks[y - NEST_PAINT_TOP])
+        elif not overlay and not (occupied_red or full_nest) and TOP <= y < BOTTOM:
             if not surface_raster_only and (y - TOP) % 16 == 0:
                 tile_y = camera_y + (y - TOP) // 16
                 tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
@@ -347,7 +364,7 @@ def render_hd(frame, payload, observation):
             pixels[offset:offset + output_row_size * 2] = original + original
             continue
         for sub_y in range(2):
-            texture_y = (camera_y * 32 + (y - TOP) * 2 + sub_y) % TEXTURE_SIZE
+            texture_y = (camera_y * 32 + (y - tile_top) * 2 + sub_y) % TEXTURE_SIZE
             painted = bytearray(output_row_size)
             for channel, original_values in enumerate(wide_rows):
                 values = original_values.copy()

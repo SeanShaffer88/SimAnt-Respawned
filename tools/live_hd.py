@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import time
 
+from hd_full_nest_scene import verify_full_black_nest
 from hd_red_nest_scene import verify_occupied_red
 from hd_surface_scene import verify_east_surface, verify_full_surface, verify_panned_full_surface
 from hd_trails import (
@@ -39,7 +40,7 @@ NATIVE_SIZE = (640, 480)
 LOADED_TERRAIN_BASES = (0x6E400, 0x83DE0)
 TERRAIN_BYTES = RANGES[-1][1]
 LEGACY_OFFSETS = tuple(base - loaded for (base, _), loaded in zip(RANGES[-2:], LOADED_TERRAIN_BASES))
-FULL_SURFACE_OFFSET = 0x6E430 - LOADED_TERRAIN_BASES[0]
+FULL_TERRAIN_OFFSET = 0x6E430 - LOADED_TERRAIN_BASES[0]
 TERRAIN_UNION_RANGES = tuple(
     (base, TERRAIN_BYTES + offset) for base, offset in zip(LOADED_TERRAIN_BASES, LEGACY_OFFSETS)
 )
@@ -166,7 +167,7 @@ class LiveHost(Host):
             return frame, legacy_payload, east
         full = verify_full_surface(frame, legacy_payload, legacy_observation, captured[-1])
         if full is None:
-            first = TERRAIN_START + FULL_SURFACE_OFFSET
+            first = TERRAIN_START + FULL_TERRAIN_OFFSET
             full = verify_panned_full_surface(
                 frame, legacy_payload, legacy_observation, captured[-1], captured[first:first + TERRAIN_BYTES]
             )
@@ -178,6 +179,16 @@ class LiveHost(Host):
         occupied_red = verify_occupied_red(frame, legacy_payload, legacy_observation, captured[-1])
         if occupied_red is not None and not overlay_open(frame):
             return frame, legacy_payload, occupied_red
+        if legacy_observation.get("edit") == NEST and legacy_observation["result"] == "terrain-unconfirmed":
+            # Full Game's first span is inside the existing union at 0x6E430.
+            # The Black Nest verifier uses only its 64×64 terrain grid.
+            full_payload = _terrain_payload(captured, (FULL_TERRAIN_OFFSET, LEGACY_OFFSETS[1]))
+            full_nest = verify_full_black_nest(frame, full_payload, legacy_observation, captured[-1])
+            if full_nest is not None and not overlay_open(frame):
+                from hd_scene_renderer import neutral_overlay_open
+
+                if not neutral_overlay_open(frame):
+                    return frame, full_payload, full_nest
         return None
 
     def verified_trail(self):

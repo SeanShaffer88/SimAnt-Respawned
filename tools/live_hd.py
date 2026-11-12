@@ -16,6 +16,7 @@ from replay_quick_game import (
     prepare_content,
     verify_file,
 )
+from save_profile import SaveProfile, SaveProfileError
 from verify_synchronized_scene import CAPACITY, RANGES, classify
 from windows_audio import WaveOut
 
@@ -151,7 +152,7 @@ class LiveHost(Host):
 class LiveSession:
     """Keep presentation state outside the sole running DOS session."""
 
-    def __init__(self, archive, core, title_state, out):
+    def __init__(self, archive, core, title_state, out, *, save_dir=None):
         self.title_state = Path(title_state).resolve()
         archive, core, out = (Path(p).resolve() for p in (archive, core, out))
         for path, expected in (
@@ -163,7 +164,17 @@ class LiveSession:
         scratch.mkdir()
         content = out / "run-reference.dosz"
         prepare_content(archive, content)
-        self.host = LiveHost(core, content, scratch)
+        self._started = False
+        self._closed = False
+        self._profile = None if save_dir is None else SaveProfile(
+            Path(save_dir), scratch, content.with_suffix(".pure.zip").name
+        )
+        try:
+            self.host = LiveHost(core, content, scratch)
+        except BaseException:
+            if self._profile is not None:
+                self._profile.close()
+            raise
         self.mode = "Classic"
         self.pointer = None
         self.last_pointer = None
@@ -176,6 +187,7 @@ class LiveSession:
         self.host.negotiate_av()
         self.host.run(400)
         self.host.load_title_state(self.title_state)
+        self._started = True
 
     @property
     def audio(self):
@@ -251,8 +263,17 @@ class LiveSession:
                     return "HD", render_hd(*pair, observation)
         return "Classic", render_classic(frame)
 
-    def close(self):
-        self.host.close()
+    def close(self, *, commit_save=True):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.host.close()
+            if self._profile is not None and self._started and commit_save:
+                self._profile.commit()
+        finally:
+            if self._profile is not None:
+                self._profile.close()
 
 
 def overlay_open(frame):
@@ -463,23 +484,30 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("archive", "core", "title-state", "out"):
         parser.add_argument(f"--{option}", required=True, type=Path)
+    parser.add_argument("--save-dir", type=Path, help="Persistent directory for the original DOS saves")
     args = parser.parse_args()
     if sys.platform != "win32" or c.sizeof(c.c_void_p) != 8:
         parser.error("This prototype requires 64-bit Windows Python")
 
     import tkinter as tk
 
-    session = LiveSession(args.archive, args.core, args.title_state, args.out)
     try:
-        session.start()
-        session.start_audio()
-        root = tk.Tk()
-        window = GameWindow(root, session)
-        window.tick()
-        root.mainloop()
-    finally:
-        session.close()
-    return int(window.callback_failed)
+        session = LiveSession(args.archive, args.core, args.title_state, args.out, save_dir=args.save_dir)
+        succeeded = False
+        try:
+            session.start()
+            session.start_audio()
+            root = tk.Tk()
+            window = GameWindow(root, session)
+            window.tick()
+            root.mainloop()
+            succeeded = not window.callback_failed
+        finally:
+            session.close(commit_save=succeeded)
+    except SaveProfileError as error:
+        details = "\n".join((str(error), *getattr(error, "__notes__", ())))
+        parser.exit(1, f"SimAnt Respawned: {details}\n")
+    return int(not succeeded)
 
 
 if __name__ == "__main__":

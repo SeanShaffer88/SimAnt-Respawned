@@ -26,7 +26,9 @@ In the Surface scent views, complete native B-Trail tiles use teal marks. Three 
 
 On the Surface, stationary food clusters that match the verified native pattern gain brighter green highlights and olive edges. The redraw uses the native silhouette and position. Clipped clusters and clusters covered by another object retain their DOS artwork.
 
-The HD Surface also shades three verified pebble shapes with cool highlights and warm granite tones. Only the original gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
+The HD Surface also shades three verified pebble shapes and a larger boulder with cool highlights and warm granite tones. The boulder requires a complete native silhouette and an intact ring of surrounding soil. Only the original connected gray pixels are redrawn. The original silhouettes, black shadows, and grid positions are retained.
+
+The verified active Surface anthill uses layered soil shading around its original opening. The redraw is limited to 196 native soil pixels and requires the complete anthill pattern, a clear cursor, and a clear player-ant area. The original entrance, gray stones, other craters, and occupied or clipped rims keep their prior appearance and behavior.
 
 Two verified Surface foliage sprites use subdued green accents in HD. The grass tuft and fern keep their native shape, position, and shadows. Clipped or obscured foliage keeps its original artwork.
 
@@ -36,7 +38,13 @@ The verified adult Yellow Ant emergence and first forage in Full Game also use H
 
 During Full Game Surface panning, the first terrain buffer is checked against the exposed right side of the native Map and against aligned soil and rock cells in the Edit pane. HD redraws only verified native pixel patterns. A fully offscreen Yellow Ant can stay offscreen in HD when no native ant pixels are visible. A clipped ant, an unknown pose, or unconfirmed terrain keeps the DOS artwork.
 
+The verified reopened Full Game yard can return to HD after the original Pause control resumes play. Both captured terrain copies must match the exposed upper Map and aligned Edit cells. The native Caste Control overlap, initial paused views, and the game's camera recentering are preserved.
+
 In the shallow Full Game Black Nest, HD follows verified digging and horizontal panning once the native Edit pane has enough exposed tunnel floor to corroborate the captured terrain. It redraws dark soil and light tunnel floors within matching cells. Gray walls, the original Map, and the occupied tile retain their native terrain pixels. Early shafts, foreground Map windows, and unconfirmed views retain the DOS terrain.
+
+The verified Full Game Yard overview uses subdued lawn and blue siding textures at 2×. It preserves the original grid, roof, fence, controls, and cyan active-patch blink. Exposed grass within the blinking patch uses the same texture as the rest of the lawn. A complete native cursor receives the same HD arrow as the other verified views, at its original position. The renderer requires the synchronized adult worker checkpoint and the exact original Yard layout. Early-game warnings, activity over the Yard, and window or view transitions use the original DOS frame.
+
+The verified House cutaway shades the gray indoor floor and matching blue siding at 2×. The original rooms, furniture, yard actors, grid, and controls stay visible in their DOS artwork. An unconfirmed cutaway or obscured window uses Classic.
 
 The first Tutorial dig uses HD terrain in the maximized Edit view when the original frame and both captured terrain spans agree. Soil and tunnel floor are redrawn inside complete verified tiles below the top rows. In confirmed soil tiles, matching dark neighbors fill small gaps in the HD texture away from tunnel floors and walls. The Yellow Ant, cursor, controls, and gray walls keep their native pixels. Tutorial prompts and a cursor overlapping the Yellow Ant display in Classic.
 

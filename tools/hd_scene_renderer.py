@@ -4,6 +4,7 @@ from functools import cache
 from random import Random
 
 from hd_actors import nest_supports, paint_actors, paint_nest_supports
+from hd_anthill_rim import paint_anthill_rim
 from hd_cursor import paint_cursor
 from hd_foliage import paint_foliage
 from hd_food import paint_food
@@ -11,12 +12,14 @@ from hd_full_nest_scene import (
     FULL_BLACK_NEST_LAYOUT, NEST_GRID_X, NEST_GRID_Y, NEST_PAINT_BOTTOM, NEST_PAINT_TOP, NEST_TERRAIN_BYTES,
     full_black_nest_camera, full_black_nest_raster,
 )
-from hd_pebbles import paint_pebbles
+from hd_nest_roots import paint_nest_roots
+from hd_pebbles import paint_boulders, paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
 from hd_red_queen import paint_red_castes, paint_red_queen
 from hd_surface_scene import (
-    EAST_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT, FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
+    EAST_SURFACE_LAYOUT, FULL_LOADED_SURFACE_CAMERA, FULL_LOADED_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT,
+    FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
     east_surface_camera, full_surface_camera,
 )
 from hd_trails import paint_trails
@@ -26,6 +29,7 @@ from hd_ui import (
     paint_dropdown, paint_scent_menu, paint_ui,
 )
 from hd_workspace import paint_workspace
+from hd_yard_scene import verified_house_runs, verified_yard_runs
 from verify_synchronized_scene import CAPACITY, NEST, RED_NEST, SURFACE, TERRAIN_START
 
 
@@ -98,6 +102,28 @@ def render_dropdown_only(frame):
     paint(pixels, width, menu)
     paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)
+
+
+def _render_overview(frame, runs):
+    if runs is None:
+        return None
+    width, height = frame[:2]
+    pixels = _doubled_rgb(width, height, _rgb_channels(frame))
+    for row, left, colors in runs:
+        start = row * width * 6 + left
+        pixels[start:start + len(colors)] = colors
+    paint_cursor(pixels, frame)
+    return _ppm(width * 2, height * 2, pixels)
+
+
+def render_full_yard(frame, scalars):
+    """Repaint a verified original Yard while keeping the native UI and blink."""
+    return _render_overview(frame, verified_yard_runs(frame, scalars))
+
+
+def render_full_house(frame, scalars):
+    """Repaint verified floor and siding in the native House cutaway."""
+    return _render_overview(frame, verified_house_runs(frame, scalars))
 
 
 def render_caste_only(frame):
@@ -314,7 +340,8 @@ def render_hd(frame, payload, observation):
     east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
     full = observation.get("terrain_layout") == FULL_SURFACE_LAYOUT
     full_panned = observation.get("terrain_layout") == FULL_PANNED_SURFACE_LAYOUT
-    surface_raster_only = east or full or full_panned
+    full_loaded = observation.get("terrain_layout") == FULL_LOADED_SURFACE_LAYOUT
+    surface_raster_only = east or full or full_panned or full_loaded
     occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
     full_nest = observation.get("terrain_layout") == FULL_BLACK_NEST_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
@@ -323,6 +350,8 @@ def render_hd(frame, payload, observation):
         raise ValueError("Unsupported Full Game Surface camera")
     if full_panned and (view != SURFACE or not full_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported panned Full Game Surface camera")
+    if full_loaded and (view != SURFACE or (camera_x, camera_y) != FULL_LOADED_SURFACE_CAMERA):
+        raise ValueError("Unsupported loaded Full Game Surface camera")
     if not (east or full_panned) and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")
     red_masks = occupied_red_raster(frame) if occupied_red else None
@@ -412,6 +441,8 @@ def render_hd(frame, payload, observation):
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
     if not overlay:
+        if view == NEST and not full_nest:
+            paint_nest_roots(pixels, frame, first, second, observation)
         paint_workspace(pixels, frame)
         if view == RED_NEST:
             if observation.get("terrain_layout") in ("legacy", "loaded"):
@@ -421,8 +452,10 @@ def render_hd(frame, payload, observation):
     if not overlay and not occupied_red:
         if view == SURFACE:
             paint_pebbles(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
+            paint_boulders(pixels, frame, observation, (LEFT, TOP, RIGHT, BOTTOM))
             paint_foliage(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
             paint_food(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
+            paint_anthill_rim(pixels, frame, observation)
         paint_actors(pixels, frame, payload, observation)
         if view == SURFACE:
             paint_trails(pixels, frame, observation.get("scent_mode"))

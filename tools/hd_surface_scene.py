@@ -13,12 +13,16 @@ from verify_synchronized_scene import CAPACITY, SURFACE, TERRAIN_START
 EAST_SURFACE_LAYOUT = "legacy-secondary-surface"
 FULL_SURFACE_LAYOUT = "full-surface-raster"
 FULL_PANNED_SURFACE_LAYOUT = "full-surface-first-buffer"
+FULL_LOADED_SURFACE_LAYOUT = "full-surface-loaded-buffers"
 FULL_SURFACE_CAMERA = (25, 21)
+FULL_LOADED_SURFACE_CAMERA = (26, 21)
 _FORAGE_CAMERA = (45, 14)
 _PINK = b"\x86\x08\xf3"
 _ORANGE = b"\0\x65\xff"
 _MINIMAP_COLORS = {b"\x38\x71\x92": 11, b"\x82" * 3: 13}
 _FULL_SURFACE_TITLE = ((137, 25, 294, 40), "0f4a0259c4da8c3224c1d0dec8a6dd8879db07b7735a46c79c8e6c376b825d75")
+_LOADED_CASTE_HEADER = (418, 288, 556, 307)
+_LOADED_CASTE_SHA256 = "b95745b11c115ae04014307313fef52b95ba5a2c6df75db9aed34d6ca83ffc9f"
 _QUICK_GAME_TITLE = ((137, 25, 294, 40), "80f3090cf871ce327cf9ecaf7448b9592353c8c2a6d60f66ed9a2f14bc195d1a")
 _FULL_SURFACE_LANDMARKS = {
     FULL_SURFACE_CAMERA: ((192, 90, 222, 122), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
@@ -188,21 +192,23 @@ def full_surface_camera(camera_x, camera_y):
     return 0 <= camera_x <= 106 and 0 <= camera_y <= 43
 
 
-def _full_map_matches(raw, pitch, terrain):
+def _full_map_matches(raw, pitch, terrains, *, rows=64):
     """Check classified native cells in the exposed right Map slice."""
-    for start in range(0, 64, 16):
+    for start in range(0, rows, 16):
         classified = rocks = 0
-        for y in range(start, start + 16):
+        stop = min(rows, start + 16)
+        for y in range(start, stop):
             row = (84 + 4 * y) * pitch
             for x in range(88, 128):
                 offset = row + 4 * (418 + 4 * (x - 88))
                 code = _MINIMAP_COLORS.get(raw[offset:offset + 3])
                 if code is not None:
-                    if terrain[y * 128 + x] != code:
+                    if any(terrain[y * 128 + x] != code for terrain in terrains):
                         return False
                     classified += 1
                     rocks += code == 13
-        if classified < 600 or rocks < 16:
+        minimum, rock_minimum = (600, 16) if stop - start == 16 else (110, 1)
+        if classified < minimum or rocks < rock_minimum:
             return False
     return True
 
@@ -258,24 +264,31 @@ def _full_edit_samples(raw, pitch):
     return rock_cells, soil_cells
 
 
-def _full_edit_matches(raw, pitch, terrain, camera):
+def _full_edit_matches(raw, pitch, terrains, camera):
     rocks, soil = _full_edit_samples(raw, pitch)
     if len(rocks) < 10 or len(soil) < 100:
         return False
 
-    def match(corner, cells, code):
+    def match(terrain, corner, cells, code):
         cx, cy = corner
         return sum(terrain[(cy + y) * 128 + cx + x] == code for x, y in cells)
 
-    if match(camera, rocks, 13) != len(rocks) or match(camera, soil, 11) * 100 < len(soil) * 95:
-        return False
     cx, cy = camera
-    # A near-alias must not be equally credible when the ant is offscreen.
-    for dy in range(-2, 3):
-        for dx in range(-2, 3):
-            alternate = cx + dx, cy + dy
-            if (dx or dy) and full_surface_camera(*alternate) and match(alternate, rocks, 13) > len(rocks) - 3:
-                return False
+    if len(terrains) == 2:
+        first, second = terrains
+        soil_indices = ((cy + y) * 128 + cx + x for x, y in soil)
+        if any(first[index] != second[index] for index in soil_indices):
+            return False
+    for terrain in terrains:
+        if match(terrain, camera, rocks, 13) != len(rocks) or match(terrain, camera, soil, 11) * 100 < len(soil) * 95:
+            return False
+        # A nearby camera alias must not be equally credible.
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                alternate = cx + dx, cy + dy
+                if ((dx or dy) and full_surface_camera(*alternate)
+                        and match(terrain, alternate, rocks, 13) > len(rocks) - 3):
+                    return False
     return True
 
 
@@ -320,7 +333,7 @@ def verify_panned_full_surface(frame, legacy_payload, observation, scent_mode, t
         return None
 
     # The independent Full Game terrain span comes from 0x6E430.
-    if not _full_map_matches(raw, pitch, terrain):
+    if not _full_map_matches(raw, pitch, (terrain,)):
         return None
     camera_x, camera_y = camera
     center = [71 + 16 * (ant_x - camera_x), 49 + 16 * (ant_y - camera_y)]
@@ -335,4 +348,38 @@ def verify_panned_full_surface(frame, legacy_payload, observation, scent_mode, t
                 return None
             verified["full_forage_pose"] = True
 
-    return verified if _full_edit_matches(raw, pitch, terrain, camera) else None
+    return verified if _full_edit_matches(raw, pitch, (terrain,), camera) else None
+
+
+def verify_loaded_full_surface(frame, payload, native, scent_mode):
+    """Corroborate the reopened Full Game yard after its native resume."""
+    if (scent_mode != 255 or len(payload) != CAPACITY or native.get("result") != "terrain-unconfirmed"
+            or native.get("edit") != SURFACE or native.get("map") != SURFACE or native.get("views") != [SURFACE] * 3
+            or tuple(native["camera"]) != FULL_LOADED_SURFACE_CAMERA
+            or int.from_bytes(payload[PLAYER_HEADING:PLAYER_HEADING + 2], "little") != 2):
+        return None
+    ant_x, ant_y, ant_layer = native["ant"]
+    if ant_layer != SURFACE or not 0 <= ant_x < 128 or not 0 <= ant_y < 64:
+        return None
+    width, height, pitch, fmt, raw = frame
+    if (width, height, fmt) != (640, 480, 1) or pitch < 4 * width or len(raw) < pitch * height:
+        return None
+    if (not full_game_title_matches(raw, pitch)
+            or native_rgb_digest(raw, pitch, _LOADED_CASTE_HEADER) != _LOADED_CASTE_SHA256):
+        return None
+    left, top, right, _ = _LOADED_CASTE_HEADER
+    rail = raw[(top - 1) * pitch + left * 4:(top - 1) * pitch + right * 4]
+    if not all(rail[x:x + 3] == GOLD_BGR for x in range(0, len(rail), 4)):
+        return None
+
+    camera_x, camera_y = FULL_LOADED_SURFACE_CAMERA
+    center = [71 + 16 * (ant_x - camera_x), 49 + 16 * (ant_y - camera_y)]
+    verified = {**native, "result": "accepted", "visible_ant": center, "terrain_layout": FULL_LOADED_SURFACE_LAYOUT,
+                "scent_mode": scent_mode}
+    if not cursor_clear_of_player(frame, center) or len(player_support(frame, payload, verified)[0]) != 16:
+        return None
+    terrains = payload[TERRAIN_START:TERRAIN_START + 8192], payload[TERRAIN_START + 8192:]
+    # Caste Control covers the lower Map. Sample only the original exposed rows.
+    if not _full_map_matches(raw, pitch, terrains, rows=51):
+        return None
+    return verified if _full_edit_matches(raw, pitch, terrains, FULL_LOADED_SURFACE_CAMERA) else None

@@ -26,7 +26,9 @@ Two verified Surface foliage sprites use subdued green accents in HD. The grass 
 
 A panned east Surface frame can use HD when the visible native minimap outline, every classified terrain sample in the full minimap slice, and the projected Yellow Ant pose all agree. The terrain witness is the second legacy buffer. The east redraw uses the original ground pattern and verified food and pebble silhouettes. Unconfirmed east terrain retains its DOS artwork.
 
-The verified adult Yellow Ant emergence and first forage in Full Game also use HD. Each supported camera uses the original patch title, boulder, visible soil pattern, and a matching ant pose. Verified carried food uses the same green shading as stationary food. Offscreen ants and unmatched views fall back to Classic.
+The verified adult Yellow Ant emergence and first forage in Full Game also use HD. The original patch title, boulder, visible soil pattern, and matching ant pose verify the original checkpoints. Verified carried food uses the same green shading as stationary food.
+
+During Full Game Surface panning, the first terrain buffer is checked against the exposed right side of the native Map and against aligned soil and rock cells in the Edit pane. HD redraws only verified native pixel patterns. A fully offscreen Yellow Ant can stay offscreen in HD when no native ant pixels are visible. A clipped ant, an unknown pose, or unconfirmed terrain keeps the DOS artwork.
 
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 

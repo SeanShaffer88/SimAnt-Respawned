@@ -10,7 +10,7 @@ import time
 
 from hd_red_nest_scene import verify_occupied_red
 from hd_surface_scene import verify_east_surface
-from hd_trails import BLACK_TRAIL, SCENT_MODE_OFFSET, render_trails
+from hd_trails import SCENT_MODE_OFFSET, SUPPORTED_TRAIL_MODES, render_trails
 from replay_quick_game import (
     ARCHIVE_SHA256,
     BATCH,
@@ -162,7 +162,7 @@ class LiveHost(Host):
     def verified_trail(self):
         """Return a coherent Surface frame and a supported native trail mode."""
         captured = self._capture_payload()
-        if captured is None or captured[-1] != BLACK_TRAIL:
+        if captured is None or captured[-1] not in SUPPORTED_TRAIL_MODES:
             return None
         frame = self.frame
         observation = classify(frame, _terrain_payload(captured, LEGACY_OFFSETS))

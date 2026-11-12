@@ -36,6 +36,8 @@ Repeat with `--wait-frames 137`. The 90- and 137-frame runs and the independent 
 
 The tested field follows settled view selections on the pinned emulator and game build. DOSBox Pure can begin its next guest frame before the host call returns, so the observations establish settled view identity. They cannot establish atomic RAM and framebuffer snapshots during transitions.
 
-Terrain, ant coordinates, scent overlays, visibility, and hit targets remain unverified. The console reports samples taken from live guest RAM. A graphical scene renderer remains unimplemented.
+This probe covers settled view identity. The follow-up tests sample terrain and ant positions. Scent overlays, visibility rules, and hit targets remain open. The console reports samples taken from live guest RAM. A graphical scene renderer remains unimplemented.
 
 [Libretro memory map API](https://github.com/libretro/RetroArch/blob/master/libretro-common/include/libretro.h) · [DOSBox Pure memory-map and frame scheduling source](https://github.com/libretro/dosbox-pure/blob/e39497e7c2a32c67c26e6598dd14f6d58c384bfd/dosbox_pure_libretro.cpp)
+
+Follow-up testing found that the byte can lag the foreground during switches. See the [scene state verification](scene-state-verification.md) for captured mismatches.

@@ -23,6 +23,7 @@ from hd_trails import (
     trail_tiles,
 )
 from hd_tutorial_scene import verify_tutorial_nest
+from hd_yard_scene import yard_window_candidate
 from replay_quick_game import (
     ARCHIVE_SHA256,
     BATCH,
@@ -402,7 +403,7 @@ class LiveSession:
         self.host.run(1)
 
     def presentation(self):
-        from hd_scene_renderer import render_caste_only, render_classic, render_dropdown_only, render_hd
+        from hd_scene_renderer import render_caste_only, render_classic, render_dropdown_only, render_full_yard, render_hd
 
         frame = self.host.frame
         if frame is None:
@@ -411,6 +412,12 @@ class LiveSession:
             dropdown = render_dropdown_only(frame)
             if dropdown is not None:
                 return "HD", dropdown
+            if yard_window_candidate(frame):
+                captured = self.host._capture_payload()
+                if captured is not None and len(captured) == LIVE_CAPACITY:
+                    yard = render_full_yard(frame, captured[:TERRAIN_START])
+                    if yard is not None:
+                        return "HD", yard
         if self.mode == "HD" and not overlay_open(frame):
             scene = self.host.verified_scene()
             if scene:

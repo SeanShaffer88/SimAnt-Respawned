@@ -1,0 +1,186 @@
+{
+  "case": "DOS Quick Game opening through passive loss",
+  "archive_sha256": "dc2cb4cc6d70b367f03d0754661827e03407ce8d66b5f0320d004cf17ae45103",
+  "core_sha256": "c43967d99ceb40294ccd5c0847185f46e868ac7479de1ca96fad788e5ae1f27c",
+  "core_version": "1.0-preview8",
+  "initial_state": {
+    "frame": 400,
+    "sha256": "cf279cc96f03d1253fbe03cf6ce3be289f1e8f8974cc8906880dee493e472f49"
+  },
+  "core_options": {
+    "dosbox_pure_force60fps": "false",
+    "dosbox_pure_savestate": "on",
+    "dosbox_pure_strict_mode": "false",
+    "dosbox_pure_conf": "false",
+    "dosbox_pure_menu_time": "99",
+    "dosbox_pure_menu_transparency": "70",
+    "dosbox_pure_on_screen_keyboard": "true",
+    "dosbox_pure_mouse_input": "true",
+    "dosbox_pure_mouse_wheel": "67/68",
+    "dosbox_pure_mouse_speed_factor": "1.0",
+    "dosbox_pure_mouse_speed_factor_x": "1.0",
+    "dosbox_pure_actionwheel_inputs": "14",
+    "dosbox_pure_auto_mapping": "true",
+    "dosbox_pure_keyboard_layout": "us",
+    "dosbox_pure_joystick_analog_deadzone": "15",
+    "dosbox_pure_joystick_timed": "true",
+    "dosbox_pure_cycles": "4720",
+    "dosbox_pure_cycles_max": "none",
+    "dosbox_pure_cycles_scale": "1.0",
+    "dosbox_pure_cycle_limit": "1.0",
+    "dosbox_pure_perfstats": "none",
+    "dosbox_pure_machine": "svga",
+    "dosbox_pure_cga": "early_auto",
+    "dosbox_pure_hercules": "white",
+    "dosbox_pure_svga": "svga_s3",
+    "dosbox_pure_svgamem": "2",
+    "dosbox_pure_voodoo": "8mb",
+    "dosbox_pure_voodoo_perf": "auto",
+    "dosbox_pure_voodoo_scale": "1",
+    "dosbox_pure_voodoo_gamma": "-2",
+    "dosbox_pure_aspect_correction": "false",
+    "dosbox_pure_overscan": "0",
+    "dosbox_pure_memory_size": "16",
+    "dosbox_pure_modem": "null",
+    "dosbox_pure_cpu_type": "auto",
+    "dosbox_pure_cpu_core": "normal",
+    "dosbox_pure_bootos_ramdisk": "false",
+    "dosbox_pure_bootos_dfreespace": "1024",
+    "dosbox_pure_bootos_forcenormal": "false",
+    "dosbox_pure_audiorate": "48000",
+    "dosbox_pure_sblaster_conf": "A220 I7 D1 H5",
+    "dosbox_pure_midi": "frontend",
+    "dosbox_pure_volume_sb": "1.0",
+    "dosbox_pure_volume_midi": "1.0",
+    "dosbox_pure_volume_adlib": "1.0",
+    "dosbox_pure_volume_speaker": "1.0",
+    "dosbox_pure_volume_cdrom": "1.0",
+    "dosbox_pure_volume_other": "1.0",
+    "dosbox_pure_sblaster_type": "sb16",
+    "dosbox_pure_sblaster_adlib_mode": "auto",
+    "dosbox_pure_sblaster_adlib_emu": "default",
+    "dosbox_pure_gus": "false",
+    "dosbox_pure_tandysound": "auto",
+    "dosbox_pure_swapstereo": "false"
+  },
+  "input_frame_base": 1,
+  "actions": [
+    {
+      "before_frame": 401,
+      "left_mouse_down": true
+    },
+    {
+      "before_frame": 404,
+      "left_mouse_down": false
+    },
+    {
+      "before_frame": 417,
+      "relative_mouse": [
+        150,
+        -84
+      ]
+    },
+    {
+      "before_frame": 423,
+      "left_mouse_down": true
+    },
+    {
+      "before_frame": 426,
+      "left_mouse_down": false
+    },
+    {
+      "before_frame": 489,
+      "relative_mouse": [
+        114,
+        -224
+      ]
+    },
+    {
+      "before_frame": 495,
+      "left_mouse_down": true
+    },
+    {
+      "before_frame": 498,
+      "left_mouse_down": false
+    },
+    {
+      "before_frame": 3001,
+      "relative_mouse": [
+        -420,
+        -314
+      ]
+    },
+    {
+      "before_frame": 3007,
+      "left_mouse_down": true
+    },
+    {
+      "before_frame": 3037,
+      "relative_mouse": [
+        0,
+        180
+      ]
+    },
+    {
+      "before_frame": 3046,
+      "left_mouse_down": false
+    },
+    {
+      "before_frame": 3166,
+      "relative_mouse": [
+        314,
+        -188
+      ]
+    },
+    {
+      "before_frame": 3172,
+      "left_mouse_down": true
+    },
+    {
+      "before_frame": 3202,
+      "relative_mouse": [
+        0,
+        180
+      ]
+    },
+    {
+      "before_frame": 3211,
+      "left_mouse_down": false
+    }
+  ],
+  "checkpoints": [
+    {
+      "frame": 3000,
+      "file": "nest.png",
+      "width": 640,
+      "height": 480,
+      "rgb_sha256": "d7bf1756260d55efee501ab802fff39ba1e7b34ac04037dda83cf374f1066754",
+      "expected_frame": 3000,
+      "expected_rgb_sha256": "d7bf1756260d55efee501ab802fff39ba1e7b34ac04037dda83cf374f1066754",
+      "matched": true,
+      "required": true
+    },
+    {
+      "frame": 3165,
+      "file": "surface.png",
+      "width": 640,
+      "height": 480,
+      "rgb_sha256": "5369f6fa56fc1726f35e0b81f908db6c2048c5305f4b503dbb2f406041458f27",
+      "expected_frame": 3165,
+      "expected_rgb_sha256": "5369f6fa56fc1726f35e0b81f908db6c2048c5305f4b503dbb2f406041458f27",
+      "matched": true,
+      "required": true
+    },
+    {
+      "frame": 20000,
+      "file": "terminal-probe.png",
+      "width": 640,
+      "height": 480,
+      "rgb_sha256": "b59466ab87b5b5464386f0abd510d82cc4299de3441fb3518bc46d4b9837184d",
+      "expected_frame": 20000,
+      "expected_rgb_sha256": "b59466ab87b5b5464386f0abd510d82cc4299de3441fb3518bc46d4b9837184d",
+      "matched": true,
+      "required": true
+    }
+  ]
+}

@@ -10,12 +10,14 @@ import time
 
 from replay_quick_game import (
     ARCHIVE_SHA256,
+    BATCH,
     TITLE_STATE_SHA256,
     Host,
     prepare_content,
     verify_file,
 )
 from verify_synchronized_scene import CAPACITY, RANGES, classify
+from windows_audio import WaveOut
 
 
 CORE_SHA256 = "5789d6d4e6c6fc15e3682db32301428a371b739a0ceaa189ecd1ede5df61e133"
@@ -35,11 +37,28 @@ DOS_KEYS = {
 DOS_KEYS.update({f"F{i}": 281 + i for i in (*range(1, 11), 12)})
 
 
+class GameGeometry(c.Structure):
+    _fields_ = [("base_width", c.c_uint), ("base_height", c.c_uint),
+                ("max_width", c.c_uint), ("max_height", c.c_uint),
+                ("aspect_ratio", c.c_float)]
+
+
+class SystemTiming(c.Structure):
+    _fields_ = [("fps", c.c_double), ("sample_rate", c.c_double)]
+
+
+class SystemAvInfo(c.Structure):
+    _fields_ = [("geometry", GameGeometry), ("timing", SystemTiming)]
+
+
 class LiveHost(Host):
     def __init__(self, *args):
         self.after_step = None
         self.video_present = False
         self.keyboard = None
+        self.audio = None
+        self._audio_callback = None
+        self._audio_rate = None
         super().__init__(*args)
         configure = self.core.retro_set_scene_capture_v1
         configure.argtypes = [c.POINTER(c.c_uint32), c.c_uint32]
@@ -90,6 +109,44 @@ class LiveHost(Host):
         pair = self.capture_pair()
         return pair[1][2] if pair else None
 
+    def negotiate_av(self):
+        # The core initializes mixer timing here. Call before the first run
+        # and before restoring the pinned state, never during live playback.
+        get_av = self.core.retro_get_system_av_info
+        get_av.argtypes = [c.POINTER(SystemAvInfo)]
+        get_av.restype = None
+        info = SystemAvInfo()
+        get_av(c.byref(info))
+        self._audio_rate = int(info.timing.sample_rate)
+
+    def start_audio(self, sink_factory):
+        if self.audio is not None:
+            return
+        try:
+            if self._audio_rate is None:
+                raise RuntimeError("Start the DOS session before enabling playback")
+            self.audio = sink_factory(self._audio_rate)
+        except (OSError, RuntimeError, ValueError) as error:
+            print(f"DOS audio unavailable: {error}", file=sys.stderr)
+            return
+
+        @BATCH
+        def receive(pointer, frames):
+            if self.audio is not None:
+                self.audio.submit(pointer, frames)
+            return frames
+
+        self._audio_callback = receive
+        self.core.retro_set_audio_sample_batch(self._audio_callback)
+
+    def close(self):
+        audio, self.audio = self.audio, None
+        try:
+            super().close()
+        finally:
+            if audio is not None:
+                audio.close()
+
 
 class LiveSession:
     """Keep presentation state outside the sole running DOS session."""
@@ -116,8 +173,16 @@ class LiveSession:
         self.guest_keys = set()
 
     def start(self):
+        self.host.negotiate_av()
         self.host.run(400)
         self.host.load_title_state(self.title_state)
+
+    @property
+    def audio(self):
+        return self.host.audio
+
+    def start_audio(self, sink_factory=WaveOut):
+        self.host.start_audio(sink_factory)
 
     def toggle(self):
         self.mode = "HD" if self.mode == "Classic" else "Classic"
@@ -407,6 +472,7 @@ def main():
     session = LiveSession(args.archive, args.core, args.title_state, args.out)
     try:
         session.start()
+        session.start_audio()
         root = tk.Tk()
         window = GameWindow(root, session)
         window.tick()

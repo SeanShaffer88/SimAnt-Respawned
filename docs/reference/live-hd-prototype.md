@@ -4,6 +4,8 @@ This Windows prototype opens in borderless fullscreen and runs the pinned SimAnt
 
 HD uses the synchronized capture to redraw verified Surface and Black Nest terrain at twice the original resolution. It preserves the original controls, minimap, and entities. The current Classic frame remains available whenever the scene cannot be verified or an unsupported view is active.
 
+The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. The renderer uses the same verified tile and source-pixel masks, so the original rock and tunnel boundaries, food, ants, trails, and controls keep their native placement and pixels.
+
 ## Local Inputs
 
 Use 64-bit Windows Python with Tk and the [instrumented DOSBox Pure core](../../emulator/dosbox-pure/README.md). The [reference replay](quick-game.md) records the original game and title-snapshot hashes. Keep the local game and DLL outside the repository. The scratch directory can contain original game data.

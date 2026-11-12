@@ -1,7 +1,7 @@
 """Presentation-only raster for the verified DOS Surface and Black Nest views."""
 
 from functools import cache
-import math
+from random import Random
 
 from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
 
@@ -10,7 +10,8 @@ from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
 LEFT, TOP, RIGHT, BOTTOM = 64, 42, 416, 377
 TILE_LEFT = 62
 MAP_BYTES = 8192
-TEXTURE_SIZE = 128
+TEXTURE_SIZE = 256
+TEXTURE_REPEATS = 1 + (2 * (RIGHT - LEFT) + TEXTURE_SIZE - 1) // TEXTURE_SIZE
 WHITE_TILE = b"\xff" * 16
 BLACK_TILE = b"\x00" * 16
 SURFACE_GROUND = ((85, 44, 4), (146, 113, 56))
@@ -71,23 +72,54 @@ def _double(values):
     return wide
 
 
+def _texture_noise(random, cell):
+    """Blend a wrapped noise grid without seams at the texture boundary."""
+    count = TEXTURE_SIZE // cell
+    grid = [[random.random() for _ in range(count)] for _ in range(count)]
+    weights = [(i / cell) ** 2 * (3 - 2 * i / cell) for i in range(cell)]
+
+    def row(y):
+        index, offset = divmod(y, cell)
+        top, bottom = grid[index], grid[(index + 1) % count]
+        blend = weights[offset]
+        across = [a + (b - a) * blend for a, b in zip(top, bottom)]
+        return [
+            start + (end - start) * weight
+            for start, end in zip(across, across[1:] + across[:1])
+            for weight in weights
+        ]
+
+    return row
+
+
 @cache
-def _texture(base, variation, seed):
-    """Generate world-anchored earth or stone grain with layered tonal detail."""
+def _texture(base, accent, seed, grass=False):
+    """Build a quiet world-space material with sparse, shallow surface detail."""
+    random = Random(seed)
+    patches = _texture_noise(random, 64)
+    grit = _texture_noise(random, 16)
+    relief = [bytearray(TEXTURE_SIZE) for _ in range(TEXTURE_SIZE)]
+    for _ in range(110):
+        x, y = random.randrange(TEXTURE_SIZE), random.randrange(TEXTURE_SIZE)
+        length = random.randrange(2, 7)
+        for step in range(length):
+            if grass:
+                relief[(y - step) % TEXTURE_SIZE][(x + step // 2) % TEXTURE_SIZE] = 8
+                relief[(y - step) % TEXTURE_SIZE][(x - step // 3) % TEXTURE_SIZE] = 5
+            else:
+                relief[y][(x + step) % TEXTURE_SIZE] = 6
+                relief[(y + 1) % TEXTURE_SIZE][(x + step) % TEXTURE_SIZE] = 2
+
     rows = []
     for y in range(TEXTURE_SIZE):
         channels = [bytearray(), bytearray(), bytearray()]
-        for x in range(TEXTURE_SIZE):
-            grain = ((x * 421 + y * 163 + x * y * 37 + seed * 47) ^ (x * 71 + y * 89)) % 31
-            cloud = (
-                0.42 * math.sin(math.tau * (x + 2 * y) / 128)
-                + 0.24 * math.sin(math.tau * (3 * x - 5 * y) / 128)
-                + 0.16 * math.cos(math.tau * (11 * x + 4 * y) / 128)
-            )
-            shade = round(variation * (cloud + (grain - 15) / 52))
-            for channel, value in zip(channels, base):
-                channel.append(max(0, min(255, value + shade)))
-        rows.append(tuple(bytes(channel) * 7 for channel in channels))
+        for x, (patch, grit_value) in enumerate(zip(patches(y), grit(y))):
+            blend = patch * 0.74 + grit_value * 0.26
+            grain = random.randrange(-3, 4)
+            detail = relief[y][x]
+            for channel, start, end in zip(channels, base, accent):
+                channel.append(round(start + (end - start) * blend) + grain + detail)
+        rows.append(tuple(bytes(channel) * TEXTURE_REPEATS for channel in channels))
     return tuple(rows)
 
 
@@ -154,11 +186,17 @@ def render_hd(frame, payload, observation):
     second = payload[TERRAIN_START + MAP_BYTES:]
     if view == SURFACE:
         palettes = SURFACE_GROUND, SURFACE_STONE
-        textures = _texture((126, 92, 63), 31, 13), _texture((149, 155, 151), 37, 29)
+        textures = (
+            _texture((109, 95, 59), (78, 94, 55), 13, grass=True),
+            _texture((113, 114, 108), (157, 160, 151), 29),
+        )
         speckle = ((0, 101, 16),)
     else:
         palettes = NEST_EARTH, NEST_TUNNEL
-        textures = _texture((93, 56, 40), 28, 47), _texture((160, 115, 76), 27, 73)
+        textures = (
+            _texture((76, 51, 38), (98, 67, 47), 47),
+            _texture((148, 105, 65), (174, 131, 83), 73),
+        )
         speckle = ((65, 65, 65),)
 
     channels = _rgb_channels(frame)

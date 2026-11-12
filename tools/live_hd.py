@@ -19,6 +19,7 @@ from hd_trails import (
     render_trails,
     trail_tiles,
 )
+from hd_tutorial_scene import verify_tutorial_nest
 from replay_quick_game import (
     ARCHIVE_SHA256,
     BATCH,
@@ -189,6 +190,13 @@ class LiveHost(Host):
 
                 if not neutral_overlay_open(frame):
                     return frame, full_payload, full_nest
+        if legacy_observation.get("edit") == NEST and legacy_observation.get("map") is None:
+            # The maximized Tutorial hides the Map. These same-call spans begin
+            # partway into its two maps, so only the witnessed cells are used.
+            tutorial_payload = _terrain_payload(captured, (0, 0))
+            tutorial = verify_tutorial_nest(frame, tutorial_payload, legacy_observation, captured[-1])
+            if tutorial is not None and not overlay_open(frame):
+                return frame, tutorial_payload, tutorial
         return None
 
     def verified_trail(self):

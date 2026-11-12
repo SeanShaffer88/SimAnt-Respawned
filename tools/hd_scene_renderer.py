@@ -20,6 +20,7 @@ from hd_surface_scene import (
     east_surface_camera, full_surface_camera,
 )
 from hd_trails import paint_trails
+from hd_tutorial_scene import TUTORIAL_BOUNDS, TUTORIAL_CAMERA, TUTORIAL_NEST_LAYOUT, tutorial_nest_raster
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
     paint_dropdown, paint_scent_menu, paint_ui,
@@ -229,16 +230,19 @@ def _tile_masks(first, second, stride, world_y, camera_x, view):
                  for mask in (broad, specific))
 
 
-def _wide_mask(mask):
-    return int.from_bytes(_double(mask.to_bytes(RIGHT - LEFT, "little")), "little")
+def _wide_mask(mask, width=RIGHT - LEFT):
+    return int.from_bytes(_double(mask.to_bytes(width, "little")), "little")
 
 
-def _paint(values, paint, mask, start):
+def _paint(values, paint, mask, start, left=LEFT, right=RIGHT):
     if not mask:
         return
-    begin, end = LEFT * 2, RIGHT * 2
+    begin, end = left * 2, right * 2
     original = int.from_bytes(values[begin:end], "little")
-    texture = int.from_bytes(paint[start:start + end - begin], "little")
+    painted = paint[start:start + end - begin]
+    if len(painted) < end - begin:
+        painted += paint[:end - begin - len(painted)]
+    texture = int.from_bytes(painted, "little")
     values[begin:end] = (original ^ ((original ^ texture) & mask)).to_bytes(end - begin, "little")
 
 
@@ -261,6 +265,41 @@ def neutral_overlay_open(frame):
     return _has_neutral_overlay(_rgb_channels(frame))
 
 
+def _nest_textures():
+    return (
+        _texture((76, 51, 38), (98, 67, 47), 47),
+        _texture((148, 105, 65), (174, 131, 83), 73),
+    )
+
+
+def _render_tutorial_terrain(frame, payload, observation):
+    if observation["edit"] != NEST or tuple(observation["camera"]) != TUTORIAL_CAMERA:
+        raise ValueError("Unsupported Tutorial camera")
+    width, height = frame[:2]
+    channels = _rgb_channels(frame)
+    masks = tutorial_nest_raster(frame, payload, tuple(observation["ant"][:2]))
+    if masks is None:
+        raise ValueError("Unsupported Tutorial terrain")
+    pixels = _doubled_rgb(width, height, channels)
+    left, top, right, _ = TUTORIAL_BOUNDS
+    span = right - left
+    camera_x, camera_y = TUTORIAL_CAMERA
+    texture_x = (camera_x * 32 + (left - NEST_GRID_X) * 2) % TEXTURE_SIZE
+    textures = _nest_textures()
+    for y, row_masks in enumerate(masks, top):
+        wide_masks = tuple(_wide_mask(mask, span) for mask in row_masks)
+        for sub_y in range(2):
+            texture_y = (camera_y * 32 + (y - NEST_GRID_Y) * 2 + sub_y) % TEXTURE_SIZE
+            start = ((2 * y + sub_y) * width + left) * 6
+            end = start + span * 6
+            for channel in range(3):
+                values = pixels[start + channel:end:3]
+                for texture, mask in zip(textures, wide_masks):
+                    _paint(values, texture[texture_y][channel], mask, texture_x, 0, span)
+                pixels[start + channel:end:3] = values
+    return _ppm(width * 2, height * 2, pixels)
+
+
 def render_hd(frame, payload, observation):
     """Encode a 2× frame with confirmed terrain and verified controls."""
     width, height = frame[:2]
@@ -269,6 +308,8 @@ def render_hd(frame, payload, observation):
         raise ValueError("HD rendering requires a complete 640×480 scene sample")
     if observation.get("result") != "accepted" or view not in (SURFACE, NEST, RED_NEST):
         raise ValueError("HD rendering requires an accepted Surface, Black Nest, or Red Nest sample")
+    if observation.get("terrain_layout") == TUTORIAL_NEST_LAYOUT:
+        return _render_tutorial_terrain(frame, payload, observation)
     camera_x, camera_y = observation["camera"]
     east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
     full = observation.get("terrain_layout") == FULL_SURFACE_LAYOUT
@@ -308,10 +349,7 @@ def render_hd(frame, payload, observation):
         )
     else:
         detail_palette = NEST_TUNNEL
-        textures = (
-            _texture((76, 51, 38), (98, 67, 47), 47),
-            _texture((148, 105, 65), (174, 131, 83), 73),
-        )
+        textures = _nest_textures()
 
     channels = _rgb_channels(frame)
     overlay = _has_neutral_overlay(channels)

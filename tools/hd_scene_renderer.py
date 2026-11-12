@@ -12,6 +12,7 @@ from hd_full_nest_scene import (
     FULL_BLACK_NEST_LAYOUT, NEST_GRID_X, NEST_GRID_Y, NEST_PAINT_BOTTOM, NEST_PAINT_TOP, NEST_TERRAIN_BYTES,
     full_black_nest_camera, full_black_nest_raster,
 )
+from hd_nest_roots import paint_nest_roots
 from hd_pebbles import paint_boulders, paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
@@ -440,6 +441,8 @@ def render_hd(frame, payload, observation):
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
     if not overlay:
+        if view == NEST and not full_nest:
+            paint_nest_roots(pixels, frame, first, second, observation)
         paint_workspace(pixels, frame)
         if view == RED_NEST:
             if observation.get("terrain_layout") in ("legacy", "loaded"):

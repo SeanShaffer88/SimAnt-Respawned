@@ -325,11 +325,15 @@ class LiveSession:
         self.host.run(1)
 
     def presentation(self):
-        from hd_scene_renderer import render_caste_only, render_classic, render_hd
+        from hd_scene_renderer import render_caste_only, render_classic, render_dropdown_only, render_hd
 
         frame = self.host.frame
         if frame is None:
             return "Classic", None
+        if self.mode == "HD":
+            dropdown = render_dropdown_only(frame)
+            if dropdown is not None:
+                return "HD", dropdown
         if self.mode == "HD" and not overlay_open(frame):
             scene = self.host.verified_scene()
             if scene:

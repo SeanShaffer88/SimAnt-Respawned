@@ -10,7 +10,7 @@ The HD Yellow Ant follows recognized native poses. The Black Nest redraw covers 
 
 When the Black Nest view is confirmed but its terrain is unconfirmed, HD can still redraw verified workers and soldiers over the doubled native frame. The DOS menu bar must match the resting menu, and the Edit pane must be clear of overlays.
 
-The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls use a higher-contrast palette. A skin applies only when the original control matches its verified frame region. Menu contents, label shapes, and control hit areas stay in place. Open menus and unconfirmed control states retain their native pixels.
+The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls use a higher-contrast palette. Open File, Window, View, Options, and Speed menus also use this palette when their original header, border, and colors match. The native menu determines the selected row and each control's hit area. Submenus, dialogs, and unmatched menu regions retain their native pixels.
 
 In the Surface B-Trail scent view, complete native Black Trail patterns appear as clearer colored marks with distinct intensities. Partial or ambiguous patterns and other scent modes keep their DOS pixels.
 

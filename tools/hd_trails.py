@@ -6,11 +6,16 @@ from hd_cursor import paint_cursor
 
 
 SCENT_MODE_OFFSET = 0x3DF4E
+ALARM = 0
 BLACK_TRAIL = 2
-_RGB = {"r": (223, 8, 4), "o": (255, 101, 0), "y": (255, 243, 4)}
+_RGB = {"r": (223, 8, 4), "o": (255, 101, 0), "y": (255, 243, 4), "b": (146, 113, 56)}
 # Only these complete DOS dithers have been observed. Partial stencils may
 # contain a sprite, cursor, or overlay and must retain all their original pixels.
-_STENCILS = (("roro", "oror"), ("oroo", "ooor"), ("yoyy", "yyyo"))
+_STENCILS = {
+    BLACK_TRAIL: (("roro", "oror"), ("oroo", "ooor"), ("yoyy", "yyyo")),
+    ALARM: (("oooo", "oooy", "oooo", "oyoo"), ("yoyy", "yyyo"), ("ybyb", "byby")),
+}
+SUPPORTED_TRAIL_MODES = frozenset(_STENCILS)
 
 
 def _source_row(pattern):
@@ -18,8 +23,11 @@ def _source_row(pattern):
     return tuple(bytes(pixel[channel] for pixel in pixels) for channel in (2, 1, 0))
 
 
-_FIRST_ROWS = {_source_row(first): (index, _source_row(second))
-               for index, (first, second) in enumerate(_STENCILS)}
+_FIRST_ROWS = {
+    mode: {_source_row(stencil[0]): (index, tuple(_source_row(row) for row in stencil))
+           for index, stencil in enumerate(stencils)}
+    for mode, stencils in _STENCILS.items()
+}
 
 
 def _tile_row(raw, pitch, x, y):
@@ -30,12 +38,13 @@ def _tile_row(raw, pitch, x, y):
 def trail_tiles(frame, mode):
     """Return (left, top, visual tier) for complete tiles in a settled scent view."""
     width, height, pitch, fmt, raw = frame
-    if mode != BLACK_TRAIL or (width, height, fmt) != (640, 480, 1):
+    first_rows = _FIRST_ROWS.get(mode)
+    if first_rows is None or (width, height, fmt) != (640, 480, 1):
         return ()
     if pitch < width * 4 or len(raw) < pitch * height:
         return ()
-    # The original control remains the final corroboration of the selected
-    # mode. Off can leave stale colored tiles on screen during a redraw.
+    # The mailbox selects the mode. The native button corroborates that the
+    # scent view is active, since Off may briefly leave stale colored tiles.
     for x, y, rgb in ((23, 189, (223, 8, 4)), (25, 190, (255, 255, 255))):
         begin = y * pitch + 4 * x
         if raw[begin:begin + 3] != bytes(rgb[::-1]):
@@ -48,21 +57,23 @@ def trail_tiles(frame, mode):
             if x >= 400 and y >= 345:
                 continue
             first = _tile_row(raw, pitch, x, y)
-            match = _FIRST_ROWS.get(first)
+            match = first_rows.get(first)
             if match is None:
                 continue
-            tier, second = match
-            if all(_tile_row(raw, pitch, x, y + row) == (second if row % 2 else first)
+            tier, stencil = match
+            if all(_tile_row(raw, pitch, x, y + row) == stencil[row % len(stencil)]
                    for row in range(1, 16)):
                 tiles.append((x, y, tier))
     return tuple(tiles)
 
 
 @cache
-def _trail_raster(tier):
+def _trail_raster(mode, tier):
     """Render a quiet tint with one, two, or three centered trail marks."""
-    base = (36, 68, 63)
-    marker = bytes((132, 229, 203))
+    if mode == ALARM:
+        base, marker = (60, 46, 62), bytes((214, 159, 179))
+    else:
+        base, marker = (36, 68, 63), bytes((132, 229, 203))
     background = tuple(value + tier * 9 for value in base)
     rows = [bytearray(bytes(background) * 32) for _ in range(32)]
     count = tier + 1
@@ -77,10 +88,10 @@ def _trail_raster(tier):
     return tuple(bytes(row) for row in rows)
 
 
-def _paint_tiles(pixels, row_size, tiles):
+def _paint_tiles(pixels, row_size, tiles, mode):
     for x, y, tier in tiles:
         offset = 2 * y * row_size + x * 6
-        for row in _trail_raster(tier):
+        for row in _trail_raster(mode, tier):
             pixels[offset:offset + len(row)] = row
             offset += row_size
 
@@ -89,7 +100,7 @@ def paint_trails(pixels, frame, mode):
     """Repaint verified tiles in a writable 2× RGB frame."""
     tiles = trail_tiles(frame, mode)
     if tiles:
-        _paint_tiles(pixels, frame[0] * 6, tiles)
+        _paint_tiles(pixels, frame[0] * 6, tiles, mode)
     return len(tiles)
 
 
@@ -110,6 +121,6 @@ def render_trails(frame, mode):
             row[channel::6] = row[channel + 3::6] = color
         offset = 2 * y * row_size
         pixels[offset:offset + 2 * row_size] = row + row
-    _paint_tiles(pixels, row_size, tiles)
+    _paint_tiles(pixels, row_size, tiles, mode)
     paint_cursor(pixels, frame)
     return f"P6\n{width * 2} {height * 2}\n255\n".encode("ascii") + pixels

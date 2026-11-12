@@ -1,0 +1,100 @@
+{
+  "edition": "SimAnt 1.00 English DOS",
+  "executableBuildStamp": "Fri Dec 06 14:51:14 1991",
+  "provenance": "Internet Archive archived installed copy. Retail media equivalence unverified.",
+  "source": "https://archive.org/details/msdos_SimAnt_-_The_Electronic_Ant_Colony_1991",
+  "archive": {
+    "name": "SimAnt_-_The_Electronic_Ant_Colony_1991.zip",
+    "bytes": 720638,
+    "sha1": "2901df99bc070abccdd8eb31271a6b5739d16ff5",
+    "sha256": "dc2cb4cc6d70b367f03d0754661827e03407ce8d66b5f0320d004cf17ae45103"
+  },
+  "executable": "simant/SIMANT.EXE",
+  "files": [
+    {
+      "path": "simant/FONT1",
+      "bytes": 2950,
+      "sha256": "bb9591cc742e39864722b9dab2a7e59c82c1a3804f00da684f8459912c993cc3"
+    },
+    {
+      "path": "simant/FONT2",
+      "bytes": 2930,
+      "sha256": "f5a9f39e46ae7f789ae7b7c5339aff905d2675db8149a1c0c794e33b0f6dedbc"
+    },
+    {
+      "path": "simant/FONT3",
+      "bytes": 3198,
+      "sha256": "56480958990bda60d7f798d1922ae40762261c7453cc9e99c0573e5f7a2286ff"
+    },
+    {
+      "path": "simant/FONT4",
+      "bytes": 3326,
+      "sha256": "0d0ccb62f197213e6ea793913c0b68d194fefeed63d58f6b7e36dbe25347bc15"
+    },
+    {
+      "path": "simant/HCEGANT.DAT",
+      "bytes": 629438,
+      "sha256": "9c98c0f110e901a2c2db65944e4ebdf6b26392181e9415a34eb7b29617eaa899"
+    },
+    {
+      "path": "simant/HCEGANT.NDX",
+      "bytes": 2444,
+      "sha256": "077d8aecdad5e816f0828204f7ca500a68b3a4a3288740ac75e73e44eaa8efc4"
+    },
+    {
+      "path": "simant/INFO.EXE",
+      "bytes": 10841,
+      "sha256": "2379b8dbf8d2866e736be1cafce0845c7f0f7cc0c58137781e72167542fb85cd"
+    },
+    {
+      "path": "simant/INSTALL.EXE",
+      "bytes": 24931,
+      "sha256": "a0d9866aab2adca0fffc312236a08e9fa0dc553d316139cc2736b980a25ac486"
+    },
+    {
+      "path": "simant/RALLOC.DMP",
+      "bytes": 18577,
+      "sha256": "c3e40df71a75efaf72f88e7eab1245e4ee8acc93dd6bef848b5fdf34957e47f0"
+    },
+    {
+      "path": "simant/READ.ME",
+      "bytes": 3760,
+      "sha256": "1d663cdce90d26afcc4dcfe6c66d15b9c3c1118473bb067e7465da49644be3b9"
+    },
+    {
+      "path": "simant/SHARED.DAT",
+      "bytes": 96117,
+      "sha256": "aa0d2342510f99abf57a685ea93178d9dd8d2d5be1e65b556c9b27f974012750"
+    },
+    {
+      "path": "simant/SHARED.NDX",
+      "bytes": 3868,
+      "sha256": "e172f030c11f417af4b5be34dacbda9a63f157820827b40d62c08ca2c6ea7477"
+    },
+    {
+      "path": "simant/SimAnt - The Electronic Ant Colony (1991).ba1",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "simant/SIMANT.CFG",
+      "bytes": 32,
+      "sha256": "55e111a6ccec71fef69c0e78e43f417665512d392d5dde2be11d23d2a58f1840"
+    },
+    {
+      "path": "simant/SIMANT.EXE",
+      "bytes": 506509,
+      "sha256": "aa0596c6766322a8229ee3c36e57048c92adc82d50fbe2ef37afb8b85fcf4f11"
+    },
+    {
+      "path": "simant/SOUND.DAT",
+      "bytes": 111470,
+      "sha256": "6a884b946d842bbddb4100a644a7aee6b3d8a9c9832aa65c0989ae50510d6629"
+    },
+    {
+      "path": "simant/SOUND.NDX",
+      "bytes": 1236,
+      "sha256": "4b73be9e633b612946aac043f930b620df2483676be54c27acc08b699a84ac80"
+    }
+  ]
+}

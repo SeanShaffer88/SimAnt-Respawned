@@ -14,7 +14,7 @@ from hd_full_nest_scene import (
 from hd_pebbles import paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
-from hd_red_queen import paint_red_castes, paint_red_queen
+from hd_red_queen import paint_red_castes, paint_red_queen, paint_red_soldier
 from hd_surface_scene import (
     EAST_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT, FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
     east_surface_camera, full_surface_camera,
@@ -425,6 +425,9 @@ def render_hd(frame, payload, observation):
             paint_food(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
         paint_actors(pixels, frame, payload, observation)
         if view == SURFACE:
+            if (observation.get("terrain_layout") in ("legacy", "loaded")
+                    and observation.get("map") == SURFACE and observation.get("views") == [SURFACE] * 3):
+                paint_red_soldier(pixels, frame)
             paint_trails(pixels, frame, observation.get("scent_mode"))
         paint_ui(pixels, channels, width)
         paint_cursor(pixels, frame)

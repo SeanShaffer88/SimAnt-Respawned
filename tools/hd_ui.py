@@ -3,6 +3,8 @@
 from functools import cache
 from hashlib import sha256
 
+from hd_cursor import matched_cursor_raster
+
 
 # Exact native RGB fingerprints bind each skin to the pinned DOS view and state.
 MENU_BAR = (0, 0, 640, 16)
@@ -27,6 +29,22 @@ BUTTON_COLORS = {
     b"\x00\x00\xd7": b"\x1d\x42\x60",
     b"\x00\x65\x10": b"\x16\x5a\x44",
 }
+RATIO_SHADOW = b"\x82\x82\x82"
+RATIO_SLATE = b"\x70\x7e\x80"
+# The fingerprints cover the full ring in row order. The white text panels are
+# separate, so native values can change without changing the authenticated trim.
+RATIO_TRIMS = (
+    ((107, 448, 148, 474), "5d8e3adc381d148f86ad76282ca1fae9710995f98ff2f2baa42e06104801e0b0",
+     {b"\x92\x71\x38": b"\xa4\x79\x42", b"\x55\x2c\x04": b"\x63\x44\x2b", RATIO_SHADOW: RATIO_SLATE}),
+    ((240, 448, 281, 474), "ea4a0ec101a53fe60ab9732317a6ca19739f0a6ee5b6832293cbe6837b069c43",
+     {b"\x00\xaa\xeb": b"\x42\x95\x93", b"\x00\x00\xd7": b"\x1f\x52\x5a", RATIO_SHADOW: RATIO_SLATE}),
+    ((357, 449, 410, 475), "b14de5d6868a4f72013c57a1dca6ea9de11a178f1c0776b6111722271f65959a",
+     {b"\x00\x00\xd7": b"\x53\x65\x9f", b"\x00\x00\x00": b"\x27\x33\x55", RATIO_SHADOW: RATIO_SLATE}),
+    ((490, 449, 543, 475), "0b6611c65541f2d215fc84ee0de87836d3558e7fc7693493f8f4f00aac85699f",
+     {b"\xff\x65\x00": b"\xb0\x69\x41", b"AAA": b"\x62\x39\x30", RATIO_SHADOW: RATIO_SLATE}),
+)
+# The native 13 × 13 arrow can reach a trim from these surrounding rows.
+RATIO_CURSOR_BOUNDS = (94, 435, 556, 480)
 
 # The active top bar has a stable signature above the cursor in the captured
 # dropdowns. Each entry records the panel and active title's half-open bounds.
@@ -232,19 +250,76 @@ def matching_ui(channels, width):
         elif bounds == MENU_BAR:
             # A menu highlight or another top bar means the resting UI is not visible.
             return
+    yield from _matching_ratio_trims(channels, width)
 
 
 @cache
 def _styled_rows(bounds, source):
     # Only fingerprint-verified bytes reach this cache.
-    left, _, right, _ = bounds
+    left, top, right, bottom = bounds
     row_bytes = (right - left) * 3
-    palette = MENU_COLORS if bounds == MENU_BAR else BUTTON_COLORS
+    palette = MENU_COLORS if bounds == MENU_BAR else next(
+        (colors for (x0, y0, x1, y1), _, colors in RATIO_TRIMS
+         if x0 <= left < right <= x1 and y0 <= top < bottom <= y1),
+        BUTTON_COLORS,
+    )
     rows = []
     for start in range(0, len(source), row_bytes):
         colors = (source[i:i + 3] for i in range(start, start + row_bytes, 3))
         rows.append(b"".join(palette.get(color, color) * 2 for color in colors))
     return tuple(rows)
+
+
+def _ratio_spans(bounds):
+    left, top, right, bottom = bounds
+    for y in range(top, bottom):
+        if top + 2 <= y < bottom - 4:
+            yield left, left + 2, y
+            yield right - 4, right, y
+        else:
+            yield left, right, y
+
+
+def _ratio_cursor(channels, width):
+    left, top, right, bottom = RATIO_CURSOR_BOUNDS
+    span = right - left
+    raw = bytearray(span * (bottom - top) * 4)
+    for y in range(top, bottom):
+        source = slice(y * width + left, y * width + right)
+        start = (y - top) * span * 4
+        for index, channel in enumerate(reversed(channels)):
+            raw[start + index:start + span * 4:4] = channel[source]
+    return tuple((row // 2 + top, start // 6 + left, (start + len(rgb)) // 6 + left)
+                 for row, start, rgb in matched_cursor_raster((span, bottom - top, span * 4, 1, raw))
+                 if row % 2 == 0)
+
+
+def _matching_ratio_trims(channels, width):
+    cursor = None
+    for bounds, fingerprint, palette in RATIO_TRIMS:
+        spans = tuple(_ratio_spans(bounds))
+        rows = []
+        for left, right, y in spans:
+            row = bytearray((right - left) * 3)
+            for index, channel in enumerate(channels):
+                row[index::3] = channel[y * width + left:y * width + right]
+            rows.append(bytes(row))
+        if sha256(b"".join(rows)).hexdigest() != fingerprint:
+            continue
+        if cursor is None:
+            cursor = _ratio_cursor(channels, width)
+        if any(y == row and left < end and start < right
+               for left, right, y in spans for row, start, end in cursor):
+            continue
+        for (left, _, y), row in zip(spans, rows):
+            start = None
+            for offset in range(0, len(row) + 3, 3):
+                if row[offset:offset + 3] in palette:
+                    if start is None:
+                        start = offset
+                elif start is not None:
+                    yield (left + start // 3, y, left + offset // 3, y + 1), row[start:offset]
+                    start = None
 
 
 def paint_ui(pixels, channels, width):

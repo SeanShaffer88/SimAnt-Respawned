@@ -2,6 +2,8 @@
 
 This Windows prototype opens in borderless fullscreen and runs the pinned SimAnt DOS Quick Game in one DOSBox Pure session. The game is centered below the toolbar at the largest whole-number scale that fits, up to 4×. Classic and HD share the same image bounds and native mouse coordinates. F11 and the display button switch the host presentation. Use Quit or Alt+F4 to close the host.
 
+On Windows 11, the launcher requests Per-Monitor V2 DPI awareness before it loads Tk so fullscreen geometry and pointer mapping use physical monitor pixels. If the request fails, startup continues with the available context and logs a diagnostic unless Windows reports that the process context was already set and the current thread is Per-Monitor V2 aware.
+
 HD uses the synchronized capture to redraw verified Surface, Black Nest, and Red Nest terrain at twice the original resolution. The game keeps its original controls, minimap, and entity positions. The current Classic frame remains available whenever the scene cannot be verified or an unsupported view is active.
 
 The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. In a verified Surface view, the original checkerboard phase and matching neighbors confirm soil across the Edit pane, including beyond column 63. An isolated green fleck requires matching soil on all four sides. Rocks and regular underground terrain use verified tile and source-pixel masks to preserve their original boundaries. The Red Nest uses its own selected toolbar control and the underground minimap.

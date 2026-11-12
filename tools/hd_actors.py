@@ -4,6 +4,7 @@ from collections import deque
 from hashlib import sha256
 from struct import unpack_from
 
+from hd_cursor import matched_cursor_raster
 from verify_synchronized_scene import NEST, SCALAR_START
 
 
@@ -53,6 +54,19 @@ def _inside_edit(x, y, width, height):
     return (EDIT_LEFT <= x and EDIT_TOP <= y
             and x + width <= EDIT_RIGHT and y + height <= EDIT_BOTTOM
             and (y + height <= 362 or x + width <= 400))
+
+
+def cursor_clear_of_player(frame, center):
+    """Require one complete native cursor outside the player's pose window."""
+    raster = matched_cursor_raster(frame)
+    if not raster:
+        return False
+    width, height = PLAYER_WINDOW
+    left = 6 * (center[0] - PLAYER_CENTER[0])
+    top = 2 * (center[1] - PLAYER_CENTER[1])
+    return all(not (top <= y < top + height * 2
+                    and x < left + width * 6 and x + len(rgb) > left)
+               for y, x, rgb in raster)
 
 
 def _paint_support(pixels, stride, points, base, highlight, phase):

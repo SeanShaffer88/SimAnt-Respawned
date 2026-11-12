@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import time
 
+from hd_red_nest_scene import verify_occupied_red
 from hd_surface_scene import verify_east_surface
 from hd_trails import BLACK_TRAIL, SCENT_MODE_OFFSET, render_trails
 from replay_quick_game import (
@@ -153,6 +154,9 @@ class LiveHost(Host):
         east = verify_east_surface(frame, legacy_payload, legacy_observation, captured[-1])
         if east is not None and not overlay_open(frame):
             return frame, legacy_payload, east
+        occupied_red = verify_occupied_red(frame, legacy_payload, legacy_observation, captured[-1])
+        if occupied_red is not None and not overlay_open(frame):
+            return frame, legacy_payload, occupied_red
         return None
 
     def verified_trail(self):

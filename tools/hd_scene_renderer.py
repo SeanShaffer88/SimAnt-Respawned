@@ -7,6 +7,8 @@ from hd_actors import nest_supports, paint_actors, paint_nest_supports
 from hd_cursor import paint_cursor
 from hd_food import paint_food
 from hd_pebbles import paint_pebbles
+from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
+from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
 from hd_surface_scene import EAST_SURFACE_LAYOUT, east_surface_camera
 from hd_trails import paint_trails
 from hd_ui import (
@@ -254,10 +256,14 @@ def render_hd(frame, payload, observation):
         raise ValueError("HD rendering requires an accepted Surface, Black Nest, or Red Nest sample")
     camera_x, camera_y = observation["camera"]
     east = observation.get("terrain_layout") == EAST_SURFACE_LAYOUT
+    occupied_red = observation.get("terrain_layout") == OCCUPIED_RED_LAYOUT
     if east and (view != SURFACE or not east_surface_camera(camera_x, camera_y)):
         raise ValueError("Unsupported east Surface camera")
     if not east and (not 0 <= camera_x < 64 or not 0 <= camera_y < 64):
         raise ValueError("Unsupported scene camera")
+    red_masks = occupied_red_raster(frame) if occupied_red else None
+    if occupied_red and (view != RED_NEST or (camera_x, camera_y) != OCCUPIED_RED_CAMERA or red_masks is None):
+        raise ValueError("Unsupported occupied Red Nest raster")
 
     stride = 128 if view == SURFACE else 64
     first = payload[TERRAIN_START:TERRAIN_START + MAP_BYTES]
@@ -278,7 +284,7 @@ def render_hd(frame, payload, observation):
     channels = _rgb_channels(frame)
     overlay = _has_neutral_overlay(channels)
     soil_masks = []
-    if not overlay:
+    if not overlay and not occupied_red:
         for y in range(TOP, BOTTOM):
             source = [channel[y * width + LEFT:y * width + RIGHT] for channel in channels]
             soil_masks.append(_surface_soil_row(source, y) if view == SURFACE
@@ -292,7 +298,9 @@ def render_hd(frame, payload, observation):
         begin, end = y * width, (y + 1) * width
         rows = [values[begin:end] for values in channels]
         masks = (0, 0)
-        if not overlay and TOP <= y < BOTTOM:
+        if not overlay and occupied_red and RED_RASTER_TOP <= y < RED_RASTER_BOTTOM:
+            masks = tuple(_wide_mask(mask) for mask in red_masks[y - RED_RASTER_TOP])
+        elif not overlay and not occupied_red and TOP <= y < BOTTOM:
             if not east and (y - TOP) % 16 == 0:
                 tile_y = camera_y + (y - TOP) // 16
                 tile_masks = _tile_masks(first, second, stride, tile_y, camera_x, view)
@@ -330,7 +338,7 @@ def render_hd(frame, payload, observation):
                 painted[channel::3] = values
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
-    if not overlay:
+    if not overlay and not occupied_red:
         if view == SURFACE:
             paint_pebbles(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
             paint_food(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))

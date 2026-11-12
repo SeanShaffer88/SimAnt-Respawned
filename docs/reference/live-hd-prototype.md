@@ -14,6 +14,8 @@ The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls us
 
 In the Surface B-Trail scent view, complete native Black Trail patterns appear as clearer colored marks with distinct intensities. Partial or ambiguous patterns and other scent modes keep their DOS pixels.
 
+HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
+
 ## Local Inputs
 
 Use 64-bit Windows Python with Tk and the [instrumented DOSBox Pure core](../../emulator/dosbox-pure/README.md). The [reference replay](quick-game.md) records the original game and title-snapshot hashes. Keep the local game and DLL outside the repository. The scratch directory can contain original game data.

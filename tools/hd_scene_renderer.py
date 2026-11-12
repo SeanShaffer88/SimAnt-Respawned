@@ -4,6 +4,7 @@ from functools import cache
 from random import Random
 
 from hd_actors import nest_supports, paint_actors, paint_nest_supports
+from hd_cursor import paint_cursor
 from hd_trails import paint_trails
 from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
@@ -79,6 +80,7 @@ def render_dropdown_only(frame):
     width, height = frame[:2]
     pixels = _doubled_rgb(width, height, _rgb_channels(frame))
     paint(pixels, width, menu)
+    paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)
 
 
@@ -94,6 +96,7 @@ def render_caste_only(frame):
         return None
     pixels = _doubled_rgb(width, height, channels)
     paint_nest_supports(pixels, width * 6, supports)
+    paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)
 
 
@@ -324,4 +327,5 @@ def render_hd(frame, payload, observation):
         if view == SURFACE:
             paint_trails(pixels, frame, observation.get("scent_mode"))
         paint_ui(pixels, channels, width)
+        paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)

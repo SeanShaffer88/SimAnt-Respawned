@@ -4,6 +4,7 @@ from functools import cache
 from random import Random
 
 from hd_actors import nest_supports, paint_actors, paint_nest_supports
+from hd_anthill_rim import paint_anthill_rim
 from hd_cursor import paint_cursor
 from hd_foliage import paint_foliage
 from hd_food import paint_food
@@ -423,6 +424,7 @@ def render_hd(frame, payload, observation):
             paint_pebbles(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
             paint_foliage(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
             paint_food(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))
+            paint_anthill_rim(pixels, frame, observation)
         paint_actors(pixels, frame, payload, observation)
         if view == SURFACE:
             paint_trails(pixels, frame, observation.get("scent_mode"))

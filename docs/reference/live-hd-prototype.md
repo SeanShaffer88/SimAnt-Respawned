@@ -16,7 +16,7 @@ When the Black Nest view is confirmed but its terrain is unconfirmed, HD can sti
 
 The HD top menu bar and resting Map, Help, utility, Pause, and Scent controls use a higher-contrast palette. Open File, Window, View, Options, and Speed menus also use this palette when their original header, border, and colors match. The Scent flyout uses teal for the selected or hovered row and lighter fills behind the remaining labels. Native icons and labels identify the scent modes, and the DOS game determines the selected row and each control's hit area. Dialogs and unmatched menu regions retain their native pixels.
 
-In the Surface scent views, complete native B-Trail tiles use teal marks. Three verified Alarm tile patterns use plum shading and rose marks. Partial or ambiguous tiles and unsupported scent modes keep their DOS pixels.
+In the Surface scent views, complete native B-Trail tiles use teal marks. Three verified Alarm tile patterns use plum shading and rose marks. In the verified Experimental Surface at camera (53, 22), complete Red Trail tiles use a warm soil tint and coral marks. Experimental Red Trail requires the native title, matching Surface views, and an active Scent button. The tile redraw leaves the rest of the scene native, with the existing HD cursor for a complete recognized arrow. Off, other Red Trail views, and obscured or partial tiles keep their DOS pixels.
 
 On the Surface, stationary food clusters that match the verified native pattern gain brighter green highlights and olive edges. The redraw uses the native silhouette and position. Clipped clusters and clusters covered by another object retain their DOS artwork.
 

@@ -10,7 +10,14 @@ import time
 
 from hd_red_nest_scene import verify_occupied_red
 from hd_surface_scene import verify_east_surface, verify_full_surface
-from hd_trails import SCENT_MODE_OFFSET, SUPPORTED_TRAIL_MODES, render_trails
+from hd_trails import (
+    RED_TRAIL,
+    SCENT_MODE_OFFSET,
+    SUPPORTED_TRAIL_MODES,
+    experimental_title_matches,
+    render_trails,
+    trail_tiles,
+)
 from replay_quick_game import (
     ARCHIVE_SHA256,
     BATCH,
@@ -139,6 +146,8 @@ class LiveHost(Host):
         if captured is None:
             return None
         frame = self.frame
+        if captured[-1] == RED_TRAIL and experimental_title_matches(frame):
+            return None  # Keep Experimental Red Trail on its isolated raster path.
         legacy_payload = _terrain_payload(captured, LEGACY_OFFSETS)
         legacy_observation = classify(frame, legacy_payload)
         payload, observation = legacy_payload, legacy_observation
@@ -171,13 +180,27 @@ class LiveHost(Host):
         if captured is None or captured[-1] not in SUPPORTED_TRAIL_MODES:
             return None
         frame = self.frame
+        mode = captured[-1]
         observation = classify(frame, _terrain_payload(captured, LEGACY_OFFSETS))
+        surface = (
+            observation.get("edit") == observation.get("map") == SURFACE
+            and observation.get("views") == [SURFACE] * 3
+        )
+        if mode == RED_TRAIL:
+            from hd_scene_renderer import neutral_overlay_open
+
+            # Experimental starts without a player ant. The native panes and
+            # synchronized view bytes establish the Surface independently.
+            if (surface and observation["camera"] == [53, 22]
+                    and not overlay_open(frame) and not neutral_overlay_open(frame)
+                    and trail_tiles(frame, mode)):
+                return frame, mode
+            return None
         if (
             observation["result"] in ("terrain-unconfirmed", "ant-unconfirmed")
-            and observation.get("edit") == observation.get("map") == SURFACE
-            and observation.get("views") == [SURFACE] * 3
+            and surface
         ):
-            return frame, captured[-1]
+            return frame, mode
         return None
 
     def verified_castes(self):

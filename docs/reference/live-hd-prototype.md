@@ -24,6 +24,8 @@ A panned east Surface frame can use HD when the visible native minimap outline, 
 
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.
 
+In a verified HD scene, the default DOS window arrangement can use a slate-teal desktop backdrop. The redraw follows the native exterior and checks the window rails before painting. Window contents, borders, and native cursor coverage retain their original positions.
+
 ## Local Inputs
 
 Use 64-bit Windows Python with Tk and the [instrumented DOSBox Pure core](../../emulator/dosbox-pure/README.md). The [reference replay](quick-game.md) records the original game and title-snapshot hashes. Keep the local game and DLL outside the repository. The scratch directory can contain original game data.

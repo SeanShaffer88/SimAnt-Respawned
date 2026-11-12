@@ -11,6 +11,7 @@ from zipfile import ZipFile
 from hd_cursor import matched_cursor_raster
 from hd_scene_renderer import BOTTOM, LEFT, RIGHT, TOP
 from hd_ui import MENU_BAR, matching_ui
+from hd_workspace import WORKSPACE_RGB, verified_workspace_runs
 from live_hd import LiveSession
 from verify_live_hd import ppm_image, rgb_bytes
 from verify_synchronized_scene import NEST, SURFACE, classify
@@ -78,8 +79,8 @@ def guest_marker(session):
     )
 
 
-def verify_raster(source, hd, width, height, *, cursor_frame=None):
-    """Require styled terrain and controls, with exact verified cursor support."""
+def verify_raster(source, hd, width, height, *, cursor_frame=None, workspace_frame=None):
+    """Require terrain, controls, and exact cursor and desktop changes where verified."""
     terrain_changed = False
     ui_changed = set()
     ui_regions = tuple(bounds for bounds, _ in matching_ui(
@@ -89,6 +90,10 @@ def verify_raster(source, hd, width, height, *, cursor_frame=None):
     allowed = sorted((*ui_regions, terrain))
     cursor_raster = matched_cursor_raster(cursor_frame) if cursor_frame is not None else ()
     cursor_rows = {row: (left, rgb) for row, left, rgb in cursor_raster}
+    workspace_rows = {}
+    if workspace_frame is not None:
+        for y, left, right in verified_workspace_runs(workspace_frame):
+            workspace_rows.setdefault(y, []).append((left * 6, right * 6))
     row_bytes = width * 6
     for y in range(height):
         regions = [bounds for bounds in allowed if bounds[1] <= y < bounds[3]]
@@ -99,14 +104,19 @@ def verify_raster(source, hd, width, height, *, cursor_frame=None):
         for subrow in range(2):
             display_y = y * 2 + subrow
             begin = display_y * row_bytes
-            display = hd[begin:begin + row_bytes]
+            display = bytearray(hd[begin:begin + row_bytes])
             if display_y in cursor_rows:
                 left, cursor = cursor_rows[display_y]
                 right = left + len(cursor)
                 if display[left:right] != cursor:
                     raise AssertionError("HD cursor did not match its verified raster")
                 # Cursor paint must not count toward a required terrain/control repaint.
-                display = display[:left] + expanded[left:right] + display[right:]
+                display[left:right] = expanded[left:right]
+            for left, right in workspace_rows.get(y, ()):
+                if display[left:right] != WORKSPACE_RGB * ((right-left)//3):
+                    raise AssertionError("HD desktop did not match its verified raster")
+                # Desktop paint also must not count toward terrain/control assertions.
+                display[left:right] = expanded[left:right]
             end = 0
             for bounds in regions:
                 left, right = bounds[0] * 6, bounds[2] * 6
@@ -150,7 +160,7 @@ def verify_view(session, view):
     hd_width, hd_height, hd_rgb = ppm_image(hd_image)
     if (hd_width, hd_height) != (width * 2, height * 2):
         raise AssertionError("Expected a 2× HD frame")
-    ui_regions = verify_raster(source, hd_rgb, width, height, cursor_frame=frame)
+    ui_regions = verify_raster(source, hd_rgb, width, height, cursor_frame=frame, workspace_frame=frame)
 
     if session.toggle() != "Classic":
         raise AssertionError("Toggle did not select Classic")

@@ -15,6 +15,7 @@ from hd_ui import (
     MENU_BAR, matching_dropdown, matching_scent_menu, matching_ui,
     paint_dropdown, paint_scent_menu, paint_ui,
 )
+from hd_workspace import paint_workspace
 from verify_synchronized_scene import CAPACITY, NEST, RED_NEST, SURFACE, TERRAIN_START
 
 
@@ -338,6 +339,8 @@ def render_hd(frame, payload, observation):
                 painted[channel::3] = values
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
+    if not overlay:
+        paint_workspace(pixels, frame)
     if not overlay and not occupied_red:
         if view == SURFACE:
             paint_pebbles(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))

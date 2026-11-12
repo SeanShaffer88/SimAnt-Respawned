@@ -10,7 +10,7 @@ from hd_food import paint_food
 from hd_pebbles import paint_pebbles
 from hd_red_nest_scene import BOTTOM as RED_RASTER_BOTTOM, OCCUPIED_RED_CAMERA, OCCUPIED_RED_LAYOUT
 from hd_red_nest_scene import TOP as RED_RASTER_TOP, occupied_red_raster
-from hd_red_queen import paint_red_queen
+from hd_red_queen import paint_red_castes, paint_red_queen
 from hd_surface_scene import (
     EAST_SURFACE_LAYOUT, FULL_PANNED_SURFACE_LAYOUT, FULL_SURFACE_CAMERAS, FULL_SURFACE_LAYOUT,
     east_surface_camera, full_surface_camera,
@@ -359,7 +359,10 @@ def render_hd(frame, payload, observation):
     if not overlay:
         paint_workspace(pixels, frame)
         if view == RED_NEST:
-            paint_red_queen(pixels, frame)
+            if observation.get("terrain_layout") in ("legacy", "loaded"):
+                paint_red_castes(pixels, frame)
+            else:
+                paint_red_queen(pixels, frame)
     if not overlay and not occupied_red:
         if view == SURFACE:
             paint_pebbles(pixels, frame, (LEFT, TOP, RIGHT, BOTTOM))

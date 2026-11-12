@@ -1,12 +1,10 @@
 """Paint small roots only inside verified Quick Game Black Nest soil."""
 
 from hd_actors import PLAYER_CENTER, PLAYER_WINDOW
-from hd_surface_scene import native_rgb_digest
+from hd_surface_scene import quick_game_title_matches
 from verify_synchronized_scene import NEST
 
 
-_QUICK_TITLE = (137, 25, 294, 40)
-_QUICK_TITLE_SHA = "80f3090cf871ce327cf9ecaf7448b9592353c8c2a6d60f66ed9a2f14bc195d1a"
 _SOIL_BGR = b"\x04\x2c\x55"
 _SOIL_PALETTE = (_SOIL_BGR, b"\x41\x41\x41")
 _DELTA = {"a": (8, 4, 1), "b": (5, 3, 1), "s": (-3, -2, -1)}
@@ -62,7 +60,7 @@ def paint_nest_roots(pixels, frame, first, second, observation):
             or observation.get("views") != [NEST] * 3):
         return
     width, _, pitch, _, raw = frame
-    if native_rgb_digest(raw, pitch, _QUICK_TITLE) != _QUICK_TITLE_SHA:
+    if not quick_game_title_matches(raw, pitch):
         return
 
     player = None

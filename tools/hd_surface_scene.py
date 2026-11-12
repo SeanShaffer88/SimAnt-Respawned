@@ -23,6 +23,7 @@ _MINIMAP_COLORS = {b"\x38\x71\x92": 11, b"\x82" * 3: 13}
 _FULL_SURFACE_TITLE = ((137, 25, 294, 40), "0f4a0259c4da8c3224c1d0dec8a6dd8879db07b7735a46c79c8e6c376b825d75")
 _LOADED_CASTE_HEADER = (418, 288, 556, 307)
 _LOADED_CASTE_SHA256 = "b95745b11c115ae04014307313fef52b95ba5a2c6df75db9aed34d6ca83ffc9f"
+_QUICK_GAME_TITLE = ((137, 25, 294, 40), "80f3090cf871ce327cf9ecaf7448b9592353c8c2a6d60f66ed9a2f14bc195d1a")
 _FULL_SURFACE_LANDMARKS = {
     FULL_SURFACE_CAMERA: ((192, 90, 222, 122), "edcf854aef011eaa4eea1143a6344e0ec0031a94457dbd46c976c0727ed2b946"),
     _FORAGE_CAMERA: ((142, 145, 194, 194), "99e469ad9688888a78aa542193a09785b3119c683abee8d837f9d0afd022a312"),
@@ -115,6 +116,12 @@ def native_rgb_digest(raw, pitch, bounds):
 def full_game_title_matches(raw, pitch):
     """Match the complete native Full Game Edit window title."""
     bounds, expected = _FULL_SURFACE_TITLE
+    return native_rgb_digest(raw, pitch, bounds) == expected
+
+
+def quick_game_title_matches(raw, pitch):
+    """Match the complete native Quick Game Edit window title."""
+    bounds, expected = _QUICK_GAME_TITLE
     return native_rgb_digest(raw, pitch, bounds) == expected
 
 

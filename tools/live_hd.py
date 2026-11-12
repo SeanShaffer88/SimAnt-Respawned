@@ -17,13 +17,23 @@ from replay_quick_game import (
     verify_file,
 )
 from save_profile import SaveProfile, SaveProfileError
-from verify_synchronized_scene import CAPACITY, RANGES, classify
+from verify_synchronized_scene import RANGES, TERRAIN_START, classify
 from windows_audio import WaveOut
 
 
 CORE_SHA256 = "5789d6d4e6c6fc15e3682db32301428a371b739a0ceaa189ecd1ede5df61e133"
 KEYBOARD_EVENT = c.CFUNCTYPE(None, c.c_bool, c.c_uint, c.c_uint32, c.c_uint16)
 NATIVE_SIZE = (640, 480)
+# The native Load Game path places both tile buffers earlier in conventional RAM.
+# Capture both layouts in the same video-boundary sample using two union ranges.
+LOADED_TERRAIN_BASES = (0x6E400, 0x83DE0)
+TERRAIN_BYTES = RANGES[-1][1]
+LEGACY_OFFSETS = tuple(base - loaded for (base, _), loaded in zip(RANGES[-2:], LOADED_TERRAIN_BASES))
+LIVE_RANGES = RANGES[:-2] + tuple(
+    (base, TERRAIN_BYTES + offset) for base, offset in zip(LOADED_TERRAIN_BASES, LEGACY_OFFSETS)
+)
+LIVE_CAPACITY = sum(length for _, length in LIVE_RANGES)
+LOADED_SURFACE_ROWS = 51  # The loaded game's Caste Control can cover the lower minimap.
 GUEST_PERIOD = 1 / 59.940475
 PAINT_PERIOD = 1 / 15
 OVERLAY_RUNS = tuple(bytes((tone, tone, tone, alpha)) * 40
@@ -52,6 +62,12 @@ class SystemAvInfo(c.Structure):
     _fields_ = [("geometry", GameGeometry), ("timing", SystemTiming)]
 
 
+def _terrain_payload(payload, offsets):
+    first = TERRAIN_START + offsets[0]
+    second = TERRAIN_START + LIVE_RANGES[-2][1] + offsets[1]
+    return payload[:TERRAIN_START] + payload[first:first + TERRAIN_BYTES] + payload[second:second + TERRAIN_BYTES]
+
+
 class LiveHost(Host):
     def __init__(self, *args):
         self.after_step = None
@@ -70,9 +86,9 @@ class LiveHost(Host):
             c.POINTER(c.c_uint32), c.POINTER(c.c_uint32),
         ]
         self.get_capture.restype = c.c_uint32
-        self.capture_buffer = (c.c_uint8 * CAPACITY)()
-        spans = (c.c_uint32 * (2 * len(RANGES)))(*(value for span in RANGES for value in span))
-        if not configure(spans, len(RANGES)):
+        self.capture_buffer = (c.c_uint8 * LIVE_CAPACITY)()
+        spans = (c.c_uint32 * (2 * len(LIVE_RANGES)))(*(value for span in LIVE_RANGES for value in span))
+        if not configure(spans, len(LIVE_RANGES)):
             self.close()
             raise RuntimeError("The pinned core rejected the scene capture ranges")
 
@@ -95,16 +111,40 @@ class LiveHost(Host):
             if self.after_step:
                 self.after_step(self)
 
-    def capture_pair(self):
+    def _capture_payload(self):
         if not self.video_present or self.frame is None or self.frame[:2] != NATIVE_SIZE:
             return None
         sequence, width, height = c.c_uint64(), c.c_uint32(), c.c_uint32()
         length = self.get_capture(
-            self.capture_buffer, CAPACITY, c.byref(sequence), c.byref(width), c.byref(height)
+            self.capture_buffer, LIVE_CAPACITY, c.byref(sequence), c.byref(width), c.byref(height)
         )
-        if length != CAPACITY or not sequence.value or (width.value, height.value) != NATIVE_SIZE:
+        if length != LIVE_CAPACITY or not sequence.value or (width.value, height.value) != NATIVE_SIZE:
             return None
-        return self.frame, bytes(self.capture_buffer)
+        return bytes(self.capture_buffer)
+
+    def capture_pair(self):
+        """Return the original layout for callers that inspect raw captures."""
+        payload = self._capture_payload()
+        if payload is None:
+            return None
+        return self.frame, _terrain_payload(payload, LEGACY_OFFSETS)
+
+    def verified_scene(self):
+        """Return the accepted canonical payload and scene for the current frame."""
+        captured = self._capture_payload()
+        if captured is None:
+            return None
+        frame = self.frame
+        payload = _terrain_payload(captured, LEGACY_OFFSETS)
+        observation = classify(frame, payload)
+        layout = "legacy"
+        if observation["result"] == "terrain-unconfirmed":
+            payload = _terrain_payload(captured, (0, 0))
+            observation = classify(frame, payload, surface_rows=LOADED_SURFACE_ROWS)
+            layout = "loaded"
+        if observation["result"] == "accepted":
+            return frame, payload, {**observation, "terrain_layout": layout}
+        return None
 
     def read_view(self):
         pair = self.capture_pair()
@@ -255,12 +295,10 @@ class LiveSession:
         frame = self.host.frame
         if frame is None:
             return "Classic", None
-        if self.mode == "HD":
-            pair = self.host.capture_pair()
-            if pair:
-                observation = classify(*pair)
-                if observation["result"] == "accepted" and not overlay_open(frame):
-                    return "HD", render_hd(*pair, observation)
+        if self.mode == "HD" and not overlay_open(frame):
+            scene = self.host.verified_scene()
+            if scene:
+                return "HD", render_hd(*scene)
         return "Classic", render_classic(frame)
 
     def close(self, *, commit_save=True):

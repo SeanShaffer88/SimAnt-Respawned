@@ -29,15 +29,18 @@ Use **File > Save As** in SimAnt to name a new save, then click **Save**. Use Qu
 
 One running instance owns each save directory. DOSBox Pure works on a copy under the run's scratch directory. After a clean close, the host checks the new archive and replaces the profile copy only when it has changed. A failed run or failed update leaves the prior profile in place. Keep both directories local because they can contain original game data. A launch without `--save-dir` keeps its saves in that run's scratch directory.
 
-The Windows reopen check restored the saved view, camera, and Yellow Ant position, then resumed gameplay with the original Pause control. The tested loaded Surface and Black Nest did not match the current HD terrain capture ranges after resuming and switching views. The HD selection displayed the native Classic frames in both views. HD terrain capture for loaded games remains open.
+The pinned DOS game places its terrain buffers at different addresses after a native Quick Game load. The frontend captures both layouts at the same video boundary and uses the first layout whose two terrain copies agree with the scene. For the loaded Surface layout, verification samples the upper 51 minimap rows because the Caste Control window can cover the lower rows. Both buffers must match every classified sample, with at least 1,800 samples. Mixed or unconfirmed scenes still display Classic.
 
 ## Verify
 
 ```powershell
 python -B .\tools\verify_live_hd.py @inputs --out 'C:\simant-reference\verify-hd'
+python -B .\tools\verify_loaded_quick_game.py @inputs --out 'C:\simant-reference\verify-loaded'
 ```
 
 This runs paired serial replays with identical guest inputs and core call counts. The switching replay composes both HD scenes and checks that presentation leaves the original framebuffer and selected scene state unchanged. The reference route checks the original Black Nest, Surface, and Game Over RGB anchors. The interaction routes cover both View menu directions, emergence, descent, and Yellow Ant movement. Unclassified states use Classic.
+
+The loaded-game verifier uses separate processes to save a Quick Game through the original **Save As** dialog and reopen it through **Load Game**. It checks the saved view, camera, and Yellow Ant position, then resumes through the original Pause control. It checks that Surface and Black Nest paint distinct HD terrain, toggles each back to exact Classic pixels at the same core call, and confirms that the original framebuffer, guest input, and captured state stay identical through both presentation changes. It also verifies that the Yellow Ant can move afterward and that reopening leaves the save archive byte-identical. Keep the verification output outside the repository because it contains the native save.
 
 ## Verified Results
 

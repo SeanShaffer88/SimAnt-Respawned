@@ -146,7 +146,7 @@ class CaptureHost(Host):
         self.rows.setdefault(self.phase, []).append(row)
 
 
-def classify(frame, data):
+def classify(frame, data, *, surface_rows=64):
     width, height, pitch, fmt, raw = frame
     if (width, height, fmt) != (640, 480, 1) or pitch < width * 4:
         return {"result": "unsupported"}
@@ -186,7 +186,7 @@ def classify(frame, data):
 
     buf_a = data[TERRAIN_START:TERRAIN_START + 8192]
     buf_b = data[TERRAIN_START + 8192:]
-    if not terrain_matches(pixel, edit, camera, buf_a, buf_b):
+    if not terrain_matches(pixel, edit, camera, buf_a, buf_b, surface_rows=surface_rows):
         return {**report, "result": "terrain-unconfirmed"}
 
     # Tile position is projected independently and compared to the original sprite.
@@ -229,11 +229,11 @@ def other_layer_sprite_absent(raw, pitch):
             and max(y for _, y in component) - min(y for _, y in component) == 10)
 
 
-def terrain_matches(pixel, view, camera, first, second):
+def terrain_matches(pixel, view, camera, first, second, *, surface_rows=64):
     if view == SURFACE:
         colors = {(146, 113, 56): 11, (130, 130, 130): 13}
         classified = 0
-        for y in range(64):
+        for y in range(surface_rows):
             for x in range(39):
                 terrain = colors.get(pixel(422 + 4 * x, 84 + 4 * y))
                 if terrain is None:

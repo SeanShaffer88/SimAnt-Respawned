@@ -9,6 +9,7 @@ import sys
 from zipfile import ZipFile
 
 from hd_scene_renderer import BOTTOM, LEFT, RIGHT, TOP
+from hd_ui import MENU_BAR, matching_ui
 from live_hd import LiveSession
 from verify_live_hd import ppm_image, rgb_bytes
 from verify_synchronized_scene import NEST, SURFACE, classify
@@ -77,11 +78,17 @@ def guest_marker(session):
 
 
 def verify_raster(source, hd, width, height):
-    """Require a changed terrain pane and exact 2× Classic pixels outside it."""
-    changed = False
+    """Require styled terrain and controls with exact pixels outside their bounds."""
+    terrain_changed = False
+    ui_changed = set()
+    ui_regions = tuple(bounds for bounds, _ in matching_ui(
+        tuple(source[channel::3] for channel in range(3)), width
+    ))
+    terrain = (LEFT, TOP, RIGHT, BOTTOM)
+    allowed = sorted((*ui_regions, terrain))
     row_bytes = width * 6
-    left, right = LEFT * 6, RIGHT * 6
     for y in range(height):
+        regions = [bounds for bounds in allowed if bounds[1] <= y < bounds[3]]
         row = source[y * width * 3:(y + 1) * width * 3]
         expanded = bytearray(row_bytes)
         for channel in range(3):
@@ -89,14 +96,24 @@ def verify_raster(source, hd, width, height):
         for subrow in range(2):
             begin = (y * 2 + subrow) * row_bytes
             display = hd[begin:begin + row_bytes]
-            if TOP <= y < BOTTOM:
-                if display[:left] != expanded[:left] or display[right:] != expanded[right:]:
-                    raise AssertionError("HD changed pixels outside the Edit pane")
-                changed |= display[left:right] != expanded[left:right]
-            elif display != expanded:
-                raise AssertionError("HD changed pixels outside the Edit pane")
-    if not changed:
+            end = 0
+            for bounds in regions:
+                left, right = bounds[0] * 6, bounds[2] * 6
+                if display[end:left] != expanded[end:left]:
+                    raise AssertionError("HD changed pixels outside the verified regions")
+                if display[left:right] != expanded[left:right]:
+                    if bounds == terrain:
+                        terrain_changed = True
+                    else:
+                        ui_changed.add(bounds)
+                end = right
+            if display[end:] != expanded[end:]:
+                raise AssertionError("HD changed pixels outside the verified regions")
+    if not terrain_changed:
         raise AssertionError("HD did not repaint terrain")
+    if MENU_BAR not in ui_changed or len(ui_changed) < 2:
+        raise AssertionError("HD did not repaint the menu bar and a verified control")
+    return sorted(ui_changed)
 
 
 def verify_view(session, view):
@@ -122,7 +139,7 @@ def verify_view(session, view):
     hd_width, hd_height, hd_rgb = ppm_image(hd_image)
     if (hd_width, hd_height) != (width * 2, height * 2):
         raise AssertionError("Expected a 2× HD frame")
-    verify_raster(source, hd_rgb, width, height)
+    ui_regions = verify_raster(source, hd_rgb, width, height)
 
     if session.toggle() != "Classic":
         raise AssertionError("Toggle did not select Classic")
@@ -142,6 +159,7 @@ def verify_view(session, view):
         "original_rgb_sha256": sha256(source),
         "capture_sha256": sha256(payload),
         "hd_rgb_sha256": sha256(hd_rgb),
+        "styled_ui_regions": ui_regions,
         "same_live_guest_after_toggles": True,
     }
 

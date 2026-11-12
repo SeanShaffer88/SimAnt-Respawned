@@ -3,6 +3,9 @@
 from functools import cache
 from random import Random
 
+from hd_actors import paint_actors
+from hd_trails import paint_trails
+from hd_ui import paint_ui
 from verify_synchronized_scene import CAPACITY, NEST, SURFACE, TERRAIN_START
 
 
@@ -170,7 +173,7 @@ def _has_neutral_overlay(channels):
 
 
 def render_hd(frame, payload, observation):
-    """Encode a 2× frame, repainting only confirmed terrain and preserving native sprites."""
+    """Encode a 2× frame with confirmed terrain and verified controls."""
     width, height = frame[:2]
     view = observation.get("edit")
     if (width, height) != (640, 480) or len(payload) != CAPACITY:
@@ -247,4 +250,9 @@ def render_hd(frame, payload, observation):
                 painted[channel::3] = values
             offset = (y * 2 + sub_y) * output_row_size
             pixels[offset:offset + output_row_size] = painted
+    if not overlay:
+        paint_actors(pixels, frame, payload, observation)
+        if view == SURFACE:
+            paint_trails(pixels, frame, observation.get("scent_mode"))
+        paint_ui(pixels, channels, width)
     return _ppm(width * 2, height * 2, pixels)

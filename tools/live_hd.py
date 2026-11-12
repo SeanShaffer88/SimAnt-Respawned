@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import time
 
+from hd_trails import BLACK_TRAIL, SCENT_MODE_OFFSET, render_trails
 from replay_quick_game import (
     ARCHIVE_SHA256,
     BATCH,
@@ -17,7 +18,7 @@ from replay_quick_game import (
     verify_file,
 )
 from save_profile import SaveProfile, SaveProfileError
-from verify_synchronized_scene import RANGES, TERRAIN_START, classify
+from verify_synchronized_scene import RANGES, SURFACE, TERRAIN_START, classify
 from windows_audio import WaveOut
 
 
@@ -29,9 +30,10 @@ NATIVE_SIZE = (640, 480)
 LOADED_TERRAIN_BASES = (0x6E400, 0x83DE0)
 TERRAIN_BYTES = RANGES[-1][1]
 LEGACY_OFFSETS = tuple(base - loaded for (base, _), loaded in zip(RANGES[-2:], LOADED_TERRAIN_BASES))
-LIVE_RANGES = RANGES[:-2] + tuple(
+TERRAIN_UNION_RANGES = tuple(
     (base, TERRAIN_BYTES + offset) for base, offset in zip(LOADED_TERRAIN_BASES, LEGACY_OFFSETS)
 )
+LIVE_RANGES = RANGES[:-2] + TERRAIN_UNION_RANGES + ((SCENT_MODE_OFFSET, 1),)
 LIVE_CAPACITY = sum(length for _, length in LIVE_RANGES)
 LOADED_SURFACE_ROWS = 51  # The loaded game's Caste Control can cover the lower minimap.
 GUEST_PERIOD = 1 / 59.940475
@@ -64,7 +66,7 @@ class SystemAvInfo(c.Structure):
 
 def _terrain_payload(payload, offsets):
     first = TERRAIN_START + offsets[0]
-    second = TERRAIN_START + LIVE_RANGES[-2][1] + offsets[1]
+    second = TERRAIN_START + TERRAIN_UNION_RANGES[0][1] + offsets[1]
     return payload[:TERRAIN_START] + payload[first:first + TERRAIN_BYTES] + payload[second:second + TERRAIN_BYTES]
 
 
@@ -143,7 +145,24 @@ class LiveHost(Host):
             observation = classify(frame, payload, surface_rows=LOADED_SURFACE_ROWS)
             layout = "loaded"
         if observation["result"] == "accepted":
-            return frame, payload, {**observation, "terrain_layout": layout}
+            return frame, payload, {
+                **observation, "terrain_layout": layout, "scent_mode": captured[-1],
+            }
+        return None
+
+    def verified_trail(self):
+        """Return a coherent Surface frame and a supported native trail mode."""
+        captured = self._capture_payload()
+        if captured is None or captured[-1] != BLACK_TRAIL:
+            return None
+        frame = self.frame
+        observation = classify(frame, _terrain_payload(captured, LEGACY_OFFSETS))
+        if (
+            observation["result"] in ("terrain-unconfirmed", "ant-unconfirmed")
+            and observation.get("edit") == observation.get("map") == SURFACE
+            and observation.get("views") == [SURFACE] * 3
+        ):
+            return frame, captured[-1]
         return None
 
     def read_view(self):
@@ -299,6 +318,11 @@ class LiveSession:
             scene = self.host.verified_scene()
             if scene:
                 return "HD", render_hd(*scene)
+            trail = self.host.verified_trail()
+            if trail:
+                image = render_trails(*trail)
+                if image is not None:
+                    return "HD", image
         return "Classic", render_classic(frame)
 
     def close(self, *, commit_save=True):

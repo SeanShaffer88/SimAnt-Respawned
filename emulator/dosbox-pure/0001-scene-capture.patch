@@ -1,0 +1,204 @@
+diff --git a/dosbox_pure_libretro.cpp b/dosbox_pure_libretro.cpp
+index ea24d45..a6c27d8 100644
+--- a/dosbox_pure_libretro.cpp
++++ b/dosbox_pure_libretro.cpp
+@@ -86,6 +86,20 @@ static double dbp_audio_remain;
+ static struct retro_hw_render_callback dbp_hw_render;
+ static void (*dbp_opengl_draw)(const DBP_Buffer& buf);
+ 
++// Optional frontend-thread mailbox. Only the finished-frame hook reads guest RAM.
++static const size_t DBP_CONVENTIONAL_END = 640 * 1024;
++static const uint32_t DBP_SCENE_MAX_RANGES = 8;
++static const uint32_t DBP_SCENE_MAX_BYTES = 32 * 1024;
++static struct DBP_SceneCapture
++{
++	struct Range { uint32_t offset, length; } ranges[DBP_SCENE_MAX_RANGES];
++	uint8_t bytes[DBP_SCENE_MAX_BYTES];
++	size_t program_offset = DBP_CONVENTIONAL_END;
++	uint32_t range_count, required_size, captured_size, width, height, last_draw;
++	uint64_t sequence;
++	bool has_last_draw;
++} dbp_scene;
++
+ // DOSBOX DISC MANAGEMENT
+ struct DBP_Image { std::string path, longpath; bool mounted = false, remount = false, image_disk = false, imgmount = false, imfat = false, imiso = false, imzip = false; char drive; int dirlen, dd; };
+ static std::vector<DBP_Image> dbp_images;
+@@ -475,7 +489,8 @@ void DBP_InputBind::Update(Bit16s val, bool is_analog_button)
+ static void DBP_ReportCoreMemoryMaps()
+ {
+ 	extern const char* RunningProgram;
+-	const size_t conventional_end = 640 * 1024, memtotal = (MEM_TotalPages() * 4096);
++	const size_t conventional_end = DBP_CONVENTIONAL_END, memtotal = (MEM_TotalPages() * 4096);
++	dbp_scene.program_offset = conventional_end;
+ 
+ 	// Give access to entire memory to frontend (cheat and achievements support)
+ 	// Instead of raw [OS] [GAME] [EXPANDED MEMORY] we switch the order to be
+@@ -489,6 +504,7 @@ static void DBP_ReportCoreMemoryMaps()
+ 		while (DOS_MCB(seg_prog_start).GetPSPSeg() == 0x40) // tempmcb2 from DOS_SetupMemory and "memlimit" dos config
+ 			seg_prog_start += (Bit16u)(1 + DOS_MCB(seg_prog_start).GetSize()); // skip past fake loadfix segment blocks
+ 		const size_t prog_start = PhysMake(seg_prog_start, 0);
++		dbp_scene.program_offset = prog_start;
+ 		mdescs[0].flags      = RETRO_MEMDESC_SYSTEM_RAM;
+ 		mdescs[0].start      = 0;
+ 		mdescs[0].len        = (conventional_end - prog_start);
+@@ -521,6 +537,84 @@ static void DBP_ReportCoreMemoryMaps()
+ 	dbp_refresh_memmaps = false;
+ }
+ 
++extern "C" RETRO_API bool retro_set_scene_capture_v1(const uint32_t* offset_lengths, uint32_t range_count)
++{
++	if (range_count > DBP_SCENE_MAX_RANGES || (range_count && !offset_lengths))
++		return false;
++
++	uint32_t total = 0, required_size = 0;
++	for (uint32_t i = 0; i < range_count; ++i)
++	{
++		const uint32_t offset = offset_lengths[2 * i], length = offset_lengths[2 * i + 1];
++		if (!length || offset >= DBP_CONVENTIONAL_END ||
++			length > DBP_CONVENTIONAL_END - offset || length > DBP_SCENE_MAX_BYTES - total)
++			return false;
++		if (offset + length > required_size)
++			required_size = offset + length;
++		total += length;
++	}
++
++	for (uint32_t i = 0; i < range_count; ++i)
++	{
++		dbp_scene.ranges[i].offset = offset_lengths[2 * i];
++		dbp_scene.ranges[i].length = offset_lengths[2 * i + 1];
++	}
++	dbp_scene.range_count = range_count;
++	dbp_scene.required_size = required_size;
++	dbp_scene.captured_size = 0;
++	return true;
++}
++
++extern "C" RETRO_API uint32_t retro_get_scene_capture_v1(uint8_t* destination, uint32_t capacity,
++	uint64_t* sequence, uint32_t* width, uint32_t* height)
++{
++	if (!dbp_scene.captured_size || capacity < dbp_scene.captured_size ||
++		!destination || !sequence || !width || !height)
++		return 0;
++	memcpy(destination, dbp_scene.bytes, dbp_scene.captured_size);
++	*sequence = dbp_scene.sequence;
++	*width = dbp_scene.width;
++	*height = dbp_scene.height;
++	return dbp_scene.captured_size;
++}
++
++static void DBP_CaptureSceneFrame(const DBP_Buffer& buffer)
++{
++	if (dbp_scene.has_last_draw && dbp_scene.last_draw == dbp_framecount)
++		return;
++	dbp_scene.last_draw = dbp_framecount;
++	dbp_scene.has_last_draw = true;
++
++	if (!dbp_scene.range_count || !dbp_game_running || DOSBox_Boot || !MemBase ||
++		!buffer.video || !buffer.width || !buffer.height ||
++		dbp_scene.program_offset >= DBP_CONVENTIONAL_END ||
++		dbp_scene.required_size > DBP_CONVENTIONAL_END - dbp_scene.program_offset ||
++		dbp_scene.sequence == UINT64_MAX)
++		return;
++
++	const uint8_t* program_ram = MemBase + dbp_scene.program_offset;
++	uint32_t copied = 0;
++	for (uint32_t i = 0; i < dbp_scene.range_count; ++i)
++	{
++		const DBP_SceneCapture::Range& range = dbp_scene.ranges[i];
++		memcpy(dbp_scene.bytes + copied, program_ram + range.offset, range.length);
++		copied += range.length;
++	}
++	dbp_scene.width = buffer.width;
++	dbp_scene.height = buffer.height;
++	++dbp_scene.sequence;
++	dbp_scene.captured_size = copied;
++}
++
++static void DBP_ResetSceneCapture()
++{
++	dbp_scene.range_count = 0;
++	dbp_scene.captured_size = 0;
++	dbp_scene.sequence = 0;
++	dbp_scene.has_last_draw = false;
++	dbp_scene.program_offset = DBP_CONVENTIONAL_END;
++}
++
+ enum DBP_ThreadCtlMode { TCM_PAUSE_FRAME, TCM_ON_PAUSE_FRAME, TCM_RESUME_FRAME, TCM_FINISH_FRAME, TCM_ON_FINISH_FRAME, TCM_NEXT_FRAME, TCM_SHUTDOWN, TCM_ON_SHUTDOWN };
+ static void DBP_ThreadControl(DBP_ThreadCtlMode m)
+ {
+@@ -2867,6 +2961,11 @@ static void init_dosbox(bool forcemenu = false, bool reinit = false, const std::
+ 
+ 	DBP_PadMapping::SetInputDescriptors(true);
+ 
++	// The startup buffer can still contain pixels from the previous guest.
++	dbp_scene.captured_size = 0;
++	dbp_scene.last_draw = dbp_framecount;
++	dbp_scene.has_last_draw = true;
++
+ 	// Start DOSBox thread
+ 	dbp_frame_pending = true;
+ 	dbp_state = DBPSTATE_FIRST_FRAME;
+@@ -3366,6 +3465,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info) // #5
+ 
+ void retro_unload_game(void)
+ {
++	DBP_ResetSceneCapture();
+ 	DBP_Shutdown();
+ }
+ 
+@@ -3376,6 +3476,7 @@ void retro_set_controller_port_device(unsigned port, unsigned device) //#5
+ 
+ void retro_reset(void)
+ {
++	dbp_scene.captured_size = 0;
+ 	// Calling input_state_cb before the first frame can be fatal (RetroArch would crash), but during retro_reset it should be fine
+ 	init_dosbox(input_state_cb && (
+ 		input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LSHIFT) ||
+@@ -3426,6 +3527,7 @@ void retro_run_touchpad(bool has_press, Bit16s absx, Bit16s absy)
+ 
+ void retro_run(void)
+ {
++	dbp_scene.captured_size = 0;
+ 	#ifdef DBP_ENABLE_FPS_COUNTERS
+ 	DBP_FPSCOUNT(dbp_fpscount_retro)
+ 	uint32_t curTick = DBP_GetTicks();
+@@ -3662,6 +3764,10 @@ void retro_run(void)
+ 
+ 	if (dbp_opengl_draw && voodoo_ogl_mainthread()) { view_width *= voodoo_ogl_scale; view_height *= voodoo_ogl_scale; }
+ 
++	// The selected software buffer and guest RAM are still held at the same boundary.
++	if (!skip_emulate && !dbp_opengl_draw)
++		DBP_CaptureSceneFrame(buf);
++
+ 	DBP_ThreadControl(skip_emulate ? TCM_RESUME_FRAME : TCM_NEXT_FRAME);
+ 
+ 	#ifndef DBP_STANDALONE
+@@ -3749,6 +3855,12 @@ static bool retro_serialize_all(DBPArchive& ar, bool unlock_thread)
+ 	bool pauseThread = (dbp_state != DBPSTATE_BOOT && dbp_state != DBPSTATE_SHUTDOWN);
+ 	if (pauseThread) DBP_ThreadControl(TCM_PAUSE_FRAME);
+ 	DBPSerialize_All(ar, (dbp_state == DBPSTATE_RUNNING || dbp_state == DBPSTATE_FIRST_FRAME), dbp_game_running);
++	if (pauseThread && ar.mode == DBPArchive::MODE_LOAD)
++	{
++		// The last draw predates the loaded guest state. Wait for a new one.
++		dbp_scene.last_draw = dbp_framecount;
++		dbp_scene.has_last_draw = true;
++	}
+ 	//log_cb(RETRO_LOG_WARN, "[SERIALIZE] [%d] [%s] %u\n", ((dbp_state == DBPSTATE_RUNNING || dbp_state == DBPSTATE_FIRST_FRAME) && dbp_game_running), (ar.mode == DBPArchive::MODE_LOAD ? "LOAD" : ar.mode == DBPArchive::MODE_SAVE ? "SAVE" : ar.mode == DBPArchive::MODE_SIZE ? "SIZE" : ar.mode == DBPArchive::MODE_MAXSIZE ? "MAXX" : ar.mode == DBPArchive::MODE_ZERO ? "ZERO" : "???????"), (Bit32u)ar.GetOffset());
+ 	if (dbp_game_running && ar.mode == DBPArchive::MODE_LOAD) dbp_lastmenuticks = DBP_GetTicks(); // force show menu on immediate emulation crash
+ 	if (pauseThread && unlock_thread) DBP_ThreadControl(TCM_RESUME_FRAME);
+@@ -3824,6 +3936,7 @@ bool retro_serialize(void *data, size_t size)
+ 
+ bool retro_unserialize(const void *data, size_t size)
+ {
++	dbp_scene.captured_size = 0;
+ 	DBPArchiveReader ar(data, size);
+ 	bool res = retro_serialize_all(ar, true);
+ 	if ((ar.had_error != DBPArchive::ERR_DOSNOTRUNNING && ar.had_error != DBPArchive::ERR_GAMENOTRUNNING) || dbp_serializemode != DBPSERIALIZE_REWIND) return res;
+@@ -3833,6 +3946,7 @@ bool retro_unserialize(const void *data, size_t size)
+ 
+ void retro_deinit(void)
+ {
++	DBP_ResetSceneCapture();
+ 	for (DBP_Buffer& buf : dbp_buffers) { if (buf.video) { free(buf.video); buf.video = NULL; } }
+ }
+ 

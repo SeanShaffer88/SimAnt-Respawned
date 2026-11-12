@@ -1,5 +1,7 @@
 """Redraw the bright cells of complete native Surface food clusters."""
 
+from functools import lru_cache
+
 
 _CLUSTER = (
     "g.gggg..",
@@ -11,10 +13,10 @@ _CLUSTER = (
     ".gGgGgg.",
     "..gggg..",
 )
-_BRIGHT = b"\x14\xb6\x1c"
+FOOD_BRIGHT_BGR = b"\x14\xb6\x1c"
 _DARK = b"\x10\x65\0"
 _SOIL = (_DARK, b"\x04\x2c\x55", b"\x38\x71\x92")
-_NATIVE = {"G": (_BRIGHT,), "g": (_DARK,), ".": _SOIL}
+_NATIVE = {"G": (FOOD_BRIGHT_BGR,), "g": (_DARK,), ".": _SOIL}
 _SUPPORT = {(x, y) for y, row in enumerate(_CLUSTER) for x, role in enumerate(row) if role == "G"}
 
 # The surrounding soil distinguishes a stationary cluster from a sprite or trail.
@@ -27,9 +29,10 @@ _MIDTONE = b"\x82\xb2\x42"
 _SHADOW = b"\x57\x7e\x29"
 
 
-def _raster():
+@lru_cache(maxsize=3)
+def _raster(bright_points):
     """Keep the original bright silhouette with a one-subpixel lit edge."""
-    support = {(2 * x + dx, 2 * y + dy) for x, y in _SUPPORT for dx in (0, 1) for dy in (0, 1)}
+    support = {(2 * x + dx, 2 * y + dy) for x, y in bright_points for dx in (0, 1) for dy in (0, 1)}
     pixels = []
     for x, y in sorted(support, key=lambda point: (point[1], point[0])):
         if (x + 1, y) not in support or (x, y + 1) not in support:
@@ -42,7 +45,7 @@ def _raster():
     return tuple(pixels)
 
 
-_RASTER = _raster()
+_RASTER = _raster(frozenset(_SUPPORT))
 
 
 def _food_origins(frame, edit_bounds):
@@ -59,7 +62,7 @@ def _food_origins(frame, edit_bounds):
                 continue  # The full food and ring must avoid the resize grip.
             origin = y * pitch + x * 4
             seed = origin + pitch + 8  # The first bright cell is at (2, 1).
-            if raw[seed:seed + 3] == _BRIGHT and all(
+            if raw[seed:seed + 3] == FOOD_BRIGHT_BGR and all(
                 raw[origin + offset:origin + offset + 3] in colors for offset, colors in witnesses
             ):
                 yield x, y
@@ -73,3 +76,16 @@ def paint_food(pixels, frame, edit_bounds):
         for dx, dy, color in _RASTER:
             start = origin + dy * stride + dx * 3
             pixels[start:start + 3] = color
+
+
+def paint_carried_food(pixels, stride, bright_points):
+    """Shade the bright cells of a previously verified food load."""
+    if not bright_points:
+        return
+    left = min(x for x, _ in bright_points)
+    top = min(y for _, y in bright_points)
+    origin = 2 * top * stride + left * 6
+    local = frozenset((x - left, y - top) for x, y in bright_points)
+    for dx, dy, color in _raster(local):
+        start = origin + dy * stride + dx * 3
+        pixels[start:start + 3] = color

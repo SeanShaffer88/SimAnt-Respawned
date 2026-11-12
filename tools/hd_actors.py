@@ -5,6 +5,7 @@ from hashlib import sha256
 from struct import unpack_from
 
 from hd_cursor import matched_cursor_raster
+from hd_food import FOOD_BRIGHT_BGR, paint_carried_food
 from verify_synchronized_scene import NEST, SCALAR_START
 
 
@@ -29,6 +30,11 @@ PLAYER_POSES = {
     5: ("84fa7c2e1b66e4106b6a61329ccccf844811bbd4791c9151e8ef7545d0df4b2c",),
     6: ("d5a328e000985b6db30659e5d629cd1f74f3723dd744d07020c251ebc6cae2ba",),
     7: ("8f93af79eebaded823ae4c002a416b56ea0708f81b6a1d8c9ed0236bad3403e7",),
+}
+_FORAGE_APPROACH = "1eceda1f5ff0346db8ab5c992577fde283ac9744931c87c3f568ed8d9891a11b"
+_CARRYING_POSES = {
+    2: "435f070b3604e4866c7dff298ae4acf05b03def571f15f1e045f15caa22483c2",
+    6: "79bca6f157b2ebdfe017b33c918d47ba383e23f6842e04aa436f3c0cb02e0968",
 }
 # A pose key contains width, height, pixel count and the SHA-256 of the
 # complete normalized footprint. The opening Black Queen is documented in
@@ -109,6 +115,46 @@ def player_support(frame, payload, observation):
     return points, step % 2
 
 
+def forage_player_support(frame, payload, observation):
+    """Return player and cargo supports for the verified panned Full Game poses."""
+    heading = unpack_from("<H", payload, PLAYER_HEADING)[0]
+    center = observation.get("visible_ant")
+    if center is None or (heading != 0 and heading not in _CARRYING_POSES):
+        return (), (), 0
+    width, height = PLAYER_WINDOW
+    left, top = center[0] - PLAYER_CENTER[0], center[1] - PLAYER_CENTER[1]
+    if not _inside_edit(left, top, width, height):
+        return (), (), 0
+
+    _, _, pitch, _, raw = frame
+    gold, food = [], []
+    gold_mask = food_mask = black_mask = 0
+    for y in range(height):
+        for x in range(width):
+            start = (top + y) * pitch + (left + x) * 4
+            pixel = raw[start:start + 3]
+            bit = 1 << (y * width + x)
+            if pixel == GOLD_BGR:
+                gold.append((left + x, top + y))
+                gold_mask |= bit
+            elif pixel == FOOD_BRIGHT_BGR:
+                food.append((left + x, top + y))
+                food_mask |= bit
+            elif pixel == BLACK_BGR:
+                black_mask |= bit
+
+    size = (width * height + 7) // 8
+    world_x, world_y, _ = observation["ant"]
+    if heading == 0:
+        if sha256(gold_mask.to_bytes(size, "little")).hexdigest() == _FORAGE_APPROACH:
+            return gold, (), world_y % 2
+    else:
+        footprint = b"".join(mask.to_bytes(size, "little") for mask in (gold_mask, food_mask, black_mask))
+        if sha256(footprint).hexdigest() == _CARRYING_POSES[heading]:
+            return gold, food, world_x % 2
+    return (), (), 0
+
+
 def nest_supports(frame):
     """Match complete black components to verified native caste poses."""
     _, _, pitch, _, raw = frame
@@ -174,5 +220,9 @@ def paint_actors(pixels, frame, payload, observation):
     stride = frame[0] * 6
     if observation.get("edit") == NEST:
         paint_nest_supports(pixels, stride, nest_supports(frame))
-    points, phase = player_support(frame, payload, observation)
+    if observation.get("full_forage_pose"):
+        points, food, phase = forage_player_support(frame, payload, observation)
+        paint_carried_food(pixels, stride, food)
+    else:
+        points, phase = player_support(frame, payload, observation)
     _paint_support(pixels, stride, points, b"\xd9\x8f\x22", b"\xff\xec\x81", phase)

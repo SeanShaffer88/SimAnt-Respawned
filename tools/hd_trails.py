@@ -2,6 +2,8 @@
 
 from functools import cache
 
+from hd_cursor import paint_cursor
+
 
 SCENT_MODE_OFFSET = 0x3DF4E
 BLACK_TRAIL = 2
@@ -109,4 +111,5 @@ def render_trails(frame, mode):
         offset = 2 * y * row_size
         pixels[offset:offset + 2 * row_size] = row + row
     _paint_tiles(pixels, row_size, tiles)
+    paint_cursor(pixels, frame)
     return f"P6\n{width * 2} {height * 2}\n255\n".encode("ascii") + pixels

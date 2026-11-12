@@ -8,6 +8,7 @@ import subprocess
 import sys
 from zipfile import ZipFile
 
+from hd_cursor import matched_cursor_raster
 from hd_scene_renderer import BOTTOM, LEFT, RIGHT, TOP
 from hd_ui import MENU_BAR, matching_ui
 from live_hd import LiveSession
@@ -77,8 +78,8 @@ def guest_marker(session):
     )
 
 
-def verify_raster(source, hd, width, height):
-    """Require styled terrain and controls with exact pixels outside their bounds."""
+def verify_raster(source, hd, width, height, *, cursor_frame=None):
+    """Require styled terrain and controls, with exact verified cursor support."""
     terrain_changed = False
     ui_changed = set()
     ui_regions = tuple(bounds for bounds, _ in matching_ui(
@@ -86,6 +87,8 @@ def verify_raster(source, hd, width, height):
     ))
     terrain = (LEFT, TOP, RIGHT, BOTTOM)
     allowed = sorted((*ui_regions, terrain))
+    cursor_raster = matched_cursor_raster(cursor_frame) if cursor_frame is not None else ()
+    cursor_rows = {row: (left, rgb) for row, left, rgb in cursor_raster}
     row_bytes = width * 6
     for y in range(height):
         regions = [bounds for bounds in allowed if bounds[1] <= y < bounds[3]]
@@ -94,8 +97,16 @@ def verify_raster(source, hd, width, height):
         for channel in range(3):
             expanded[channel::6] = expanded[channel + 3::6] = row[channel::3]
         for subrow in range(2):
-            begin = (y * 2 + subrow) * row_bytes
+            display_y = y * 2 + subrow
+            begin = display_y * row_bytes
             display = hd[begin:begin + row_bytes]
+            if display_y in cursor_rows:
+                left, cursor = cursor_rows[display_y]
+                right = left + len(cursor)
+                if display[left:right] != cursor:
+                    raise AssertionError("HD cursor did not match its verified raster")
+                # Cursor paint must not count toward a required terrain/control repaint.
+                display = display[:left] + expanded[left:right] + display[right:]
             end = 0
             for bounds in regions:
                 left, right = bounds[0] * 6, bounds[2] * 6
@@ -139,7 +150,7 @@ def verify_view(session, view):
     hd_width, hd_height, hd_rgb = ppm_image(hd_image)
     if (hd_width, hd_height) != (width * 2, height * 2):
         raise AssertionError("Expected a 2× HD frame")
-    ui_regions = verify_raster(source, hd_rgb, width, height)
+    ui_regions = verify_raster(source, hd_rgb, width, height, cursor_frame=frame)
 
     if session.toggle() != "Classic":
         raise AssertionError("Toggle did not select Classic")

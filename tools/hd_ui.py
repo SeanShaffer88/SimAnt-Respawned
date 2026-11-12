@@ -1,4 +1,4 @@
-"""Repaint verified, resting DOS controls inside their original bounds."""
+"""Repaint verified DOS controls inside their original bounds."""
 
 from functools import cache
 from hashlib import sha256
@@ -27,6 +27,120 @@ BUTTON_COLORS = {
     b"\x00\x00\xd7": b"\x1d\x42\x60",
     b"\x00\x65\x10": b"\x16\x5a\x44",
 }
+
+# The active top bar has a stable signature above the cursor in the captured
+# dropdowns. Each entry records the panel and active title's half-open bounds.
+DROPDOWNS = {
+    "f2b169978f42d2b2d411ce63d6a70df96bed8708186151c70e7de5be9b983a61": ((5, 21, 75, 137), (0, 40)),
+    "a9acd758ebbf1499aac917a92a778a1c7ec1f74805ef97d8f415491b5a7ca698": ((61, 21, 139, 123), (64, 120)),
+    "366611ab510beb3df249a6fe5bcb3d6fdf1defbb8cbf02f18e514de2d796ceb3": ((125, 21, 219, 137), (144, 184)),
+    "466a2459eab5b79092d4fe233213099ff5a5ae8ef91889d0ec8b6475b2b50067": ((189, 21, 307, 109), (208, 272)),
+    "f4e478471af1c543a404987c8493da70bea50508c10b66ae3680d6c32e9709f3": ((293, 21, 355, 109), (296, 344)),
+}
+CYAN = b"\x00\xaa\xeb"
+GRAY = b"AAA"
+SELECTED_COLORS = {CYAN: b"\x23\x59\x6b", GRAY: b"\xff\xf8\xe5"}
+BORDER_COLORS = {CYAN: b"\x69\xaf\xbe"}
+DROPDOWN_COLORS = {GRAY, CYAN, b"\xff\xff\xff", b"\xff\xf3\x04", b"\x00\x00\x00", b"\xff\x65\x00"}
+CURSOR_SHADOW = ((2, 3), (4, 3), (2, 4), (3, 4), (5, 4), (2, 5),
+                 (4, 5), (6, 5), (2, 6), (5, 6), (7, 6))
+
+
+def _rgb_row(raw, pitch, y, left, right):
+    data = raw[y * pitch + left * 4:y * pitch + right * 4]
+    rgb = bytearray((right - left) * 3)
+    rgb[0::3], rgb[1::3], rgb[2::3] = data[2::4], data[1::4], data[0::4]
+    return bytes(rgb)
+
+
+def _cursor_shadow(raw, pitch, width, bottom):
+    # The native cursor's first two rows identify gray shadow pixels that
+    # otherwise look exactly like text or background from the menu palette.
+    white = b"\xff\xff\xff"
+    tip = white + b"\xff\x65\x00" + b"\xff\xf3\x04" * 6 + white
+    start = 0
+    while (index := raw.find(b"\x00\x65\xff", start, bottom * pitch)) >= 0:
+        start = index + 1
+        y, offset = divmod(index, pitch)
+        x = offset // 4 - 1
+        if (offset % 4 == 0 and y > 0 and 0 <= x <= width - 9
+                and _rgb_row(raw, pitch, y - 1, x, x + 9) == white * 9
+                and _rgb_row(raw, pitch, y, x, x + 9) == tip):
+            return {(x + dx, y - 1 + dy) for dx, dy in CURSOR_SHADOW}
+    return set()
+
+
+def matching_dropdown(frame):
+    """Return the verified native menu bounds and RGB rows to restyle."""
+    width, height, pitch, pixel_format, raw = frame
+    if (width, height, pixel_format) != (640, 480, 1) or pitch < width * 4 or len(raw) < pitch * height:
+        return None
+    if not any(raw[pitch + left * 4:pitch + left * 4 + 3] == CYAN[::-1]
+               for _, (left, _) in DROPDOWNS.values()):
+        return None
+
+    header = tuple(_rgb_row(raw, pitch, y, 0, width) for y in range(16))
+    menu = DROPDOWNS.get(sha256(b"".join(header[:14])).hexdigest())
+    if menu is None:
+        return None
+
+    bounds, title = menu
+    left, top, right, bottom = bounds
+    panel = tuple(_rgb_row(raw, pitch, y, left, right) for y in range(top, bottom))
+    rail = CYAN * 2
+    if any(not row.startswith(rail) or not row.endswith(rail) for row in panel):
+        return None
+    if panel[-2:] != (CYAN * (right - left),) * 2:
+        return None
+    if any(row[x:x + 3] not in DROPDOWN_COLORS for row in panel for x in range(0, len(row), 3)):
+        return None
+
+    # Each highlighted row starts with a pair of cyan fill lines. A cursor
+    # over the fill can remove a few pixels without changing the selected row.
+    fill_width = right - left - 6
+    selected = next((y for y in range(1, len(panel) - 2, 14)
+                     if all(row[9:-9].count(CYAN) * 3 >= fill_width * 2
+                            for row in panel[y:y + 2])), None)
+    return bounds, title, header, panel, selected, _cursor_shadow(raw, pitch, width, bottom)
+
+
+def paint_dropdown(pixels, width, menu):
+    """Restyle only the matched dropdown and its menu bar on a 2× frame."""
+    bounds, (title_left, title_right), header, panel, selected, cursor_shadow = menu
+    left, top, right, _ = bounds
+    row_bytes = width * 6
+
+    def paint_row(x, y, row, palette):
+        styled = bytearray()
+        for start in range(0, len(row), 3):
+            color = row[start:start + 3]
+            pixel = color if (x + start // 3, y) in cursor_shadow else palette.get(color, color)
+            styled += pixel * 2
+        offset = y * row_bytes * 2 + x * 6
+        pixels[offset:offset + len(styled)] = styled
+        pixels[offset + row_bytes:offset + row_bytes + len(styled)] = styled
+
+    for y, row in enumerate(header):
+        if 1 <= y < 15:
+            paint_row(0, y, row[:title_left * 3], MENU_COLORS)
+            paint_row(title_left, y, row[title_left * 3:title_right * 3], SELECTED_COLORS)
+            paint_row(title_right, y, row[title_right * 3:], MENU_COLORS)
+        else:
+            paint_row(0, y, row, MENU_COLORS)
+
+    for y, row in enumerate(panel):
+        screen_y = top + y
+        if y >= len(panel) - 2:
+            paint_row(left, screen_y, row, BORDER_COLORS)
+            continue
+        paint_row(left, screen_y, row[:6], BORDER_COLORS)
+        if selected is not None and selected <= y < selected + 14:
+            paint_row(left + 2, screen_y, row[6:9], MENU_COLORS)
+            paint_row(left + 3, screen_y, row[9:-9], SELECTED_COLORS)
+            paint_row(right - 3, screen_y, row[-9:-6], MENU_COLORS)
+        else:
+            paint_row(left + 2, screen_y, row[6:-6], MENU_COLORS)
+        paint_row(right - 2, screen_y, row[-6:], BORDER_COLORS)
 
 
 def matching_ui(channels, width):

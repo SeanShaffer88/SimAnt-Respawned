@@ -38,6 +38,8 @@ In the shallow Full Game Black Nest, HD follows verified digging and horizontal 
 
 The verified Full Game Yard overview uses subdued lawn and blue siding textures at 2×. It preserves the original grid, roof, fence, controls, and cyan active-patch blink. Exposed grass within the blinking patch uses the same texture as the rest of the lawn. A complete native cursor receives the same HD arrow as the other verified views, at its original position. The renderer requires the synchronized adult worker checkpoint and the exact original Yard layout. Early-game warnings, activity over the Yard, and window or view transitions use the original DOS frame.
 
+The verified House cutaway shades the gray indoor floor and matching blue siding at 2×. The original rooms, furniture, yard actors, grid, and controls stay visible in their DOS artwork. An unconfirmed cutaway or obscured window uses Classic.
+
 The first Tutorial dig uses HD terrain in the maximized Edit view when the original frame and both captured terrain spans agree. Soil and tunnel floor are redrawn inside complete verified tiles below the top rows. In confirmed soil tiles, matching dark neighbors fill small gaps in the HD texture away from tunnel floors and walls. The Yellow Ant, cursor, controls, and gray walls keep their native pixels. Tutorial prompts and a cursor overlapping the Yellow Ant display in Classic.
 
 HD redraws a fully matched DOS arrow with an ivory face, charcoal edge, and amber accent at the tip. The 2× redraw stays within the original arrow's opaque pixels. The DOS game still controls cursor position and hit testing. Classic presentation and frames with clipped or ambiguous cursors retain the native arrow.

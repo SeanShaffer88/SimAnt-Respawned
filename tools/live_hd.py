@@ -11,7 +11,7 @@ import time
 from hd_full_nest_scene import verify_full_black_nest
 from hd_red_nest_scene import verify_occupied_red
 from hd_surface_scene import verify_east_surface, verify_full_surface, verify_panned_full_surface
-from hd_yard_scene import yard_window_candidate
+from hd_yard_scene import house_window_candidate, yard_window_candidate
 from hd_trails import (
     RED_TRAIL,
     SCENT_MODE_OFFSET,
@@ -390,7 +390,9 @@ class LiveSession:
         self.host.run(1)
 
     def presentation(self):
-        from hd_scene_renderer import render_caste_only, render_classic, render_dropdown_only, render_full_yard, render_hd
+        from hd_scene_renderer import (
+            render_caste_only, render_classic, render_dropdown_only, render_full_house, render_full_yard, render_hd,
+        )
 
         frame = self.host.frame
         if frame is None:
@@ -399,12 +401,15 @@ class LiveSession:
             dropdown = render_dropdown_only(frame)
             if dropdown is not None:
                 return "HD", dropdown
-            if yard_window_candidate(frame):
+            if yard_window_candidate(frame) or house_window_candidate(frame):
                 captured = self.host._capture_payload()
                 if captured is not None and len(captured) == LIVE_CAPACITY:
                     yard = render_full_yard(frame, captured[:TERRAIN_START])
                     if yard is not None:
                         return "HD", yard
+                    house = render_full_house(frame, captured[:TERRAIN_START])
+                    if house is not None:
+                        return "HD", house
         if self.mode == "HD" and not overlay_open(frame):
             scene = self.host.verified_scene()
             if scene:

@@ -6,6 +6,8 @@ HD uses the synchronized capture to redraw verified Surface, Black Nest, and Red
 
 The terrain textures add muted grass and loam, fine stone and soil detail, and warmer tunnel floors. The texture coordinates stay fixed to the map as the camera moves. In a verified Surface view, the original checkerboard phase and matching neighbors confirm soil across the Edit pane, including beyond column 63. An isolated green fleck requires matching soil on all four sides. Rocks and regular underground terrain use verified tile and source-pixel masks to preserve their original boundaries. The Red Nest uses its own selected toolbar control and the underground minimap.
 
+The verified Quick Game Black Nest has sparse roots in uninterrupted soil. Each root stays anchored to its original world tile as the camera moves. Both synchronized terrain copies must identify the tile as soil, and the native pixels around the stencil must confirm solid ground. Tunnel floors, actors, controls, and unconfirmed terrain keep their original treatment.
+
 At the Red Nest entrance on the verified [Quick Game victory route](quick-game-win.md), HD can redraw exact soil and tunnel pixels from the synchronized native frame while the Yellow Ant is underground. This requires the original camera, a matching full Yellow Ant pose, a clear cursor, Scent Off, and enough intact tunnel pixels. The queen death notice and victory dialog use Classic pixels.
 
 The Red Queen's verified pose uses carmine and copper shading on the original red shell. The game keeps the black outline, position, and hit area. Only a complete pose with a clear soil or tunnel perimeter is redrawn. The native Queen info card and unmatched Red Nest sprites keep their original pixels.

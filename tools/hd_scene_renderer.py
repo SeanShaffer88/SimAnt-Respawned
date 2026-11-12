@@ -28,7 +28,7 @@ from hd_ui import (
     paint_dropdown, paint_scent_menu, paint_ui,
 )
 from hd_workspace import paint_workspace
-from hd_yard_scene import verified_yard_runs
+from hd_yard_scene import verified_house_runs, verified_yard_runs
 from verify_synchronized_scene import CAPACITY, NEST, RED_NEST, SURFACE, TERRAIN_START
 
 
@@ -103,9 +103,7 @@ def render_dropdown_only(frame):
     return _ppm(width * 2, height * 2, pixels)
 
 
-def render_full_yard(frame, scalars):
-    """Repaint a verified original Yard while keeping the native UI and blink."""
-    runs = verified_yard_runs(frame, scalars)
+def _render_overview(frame, runs):
     if runs is None:
         return None
     width, height = frame[:2]
@@ -115,6 +113,16 @@ def render_full_yard(frame, scalars):
         pixels[start:start + len(colors)] = colors
     paint_cursor(pixels, frame)
     return _ppm(width * 2, height * 2, pixels)
+
+
+def render_full_yard(frame, scalars):
+    """Repaint a verified original Yard while keeping the native UI and blink."""
+    return _render_overview(frame, verified_yard_runs(frame, scalars))
+
+
+def render_full_house(frame, scalars):
+    """Repaint verified floor and siding in the native House cutaway."""
+    return _render_overview(frame, verified_house_runs(frame, scalars))
 
 
 def render_caste_only(frame):

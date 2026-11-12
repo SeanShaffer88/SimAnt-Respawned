@@ -1,4 +1,4 @@
-"""Verify and repaint native lawn and siding in the original Full Game Yard."""
+"""Verify native Full Game overview windows and their supported materials."""
 
 from functools import lru_cache
 from hashlib import sha256
@@ -16,6 +16,8 @@ _RAILS = ((62, 62), (576, 62), (577, 63), (577, 384), (62, 384), (576, 385), (63
 _GOLD_BGR = bytes((4, 243, 255))
 _TITLE_BGR = bytes((235, 170, 0))
 _TITLE_PIXELS = ((284, 68), (328, 71), (344, 75))
+_HOUSE_TITLE_PIXELS = ((279, 68), (313, 73), (339, 76))
+_HOUSE_TITLE = ((269, 63, 371, 82), "81d882e428aa14fd14baac48ac0a6766ee4e5de17aeb536d1d7e199060d387c4")
 _LAWN = bytes((28, 182, 20))
 _SIDING = bytes((0, 0, 215))
 _REGIONS = (
@@ -35,6 +37,12 @@ _SIDING_COMPONENTS = (
     ((316, 102), (274, 102, 317, 177), 1006, "7623f47a7febba64fc16642edda1225b8277989148932caefde6933cf5d2277f"),
 )
 _CURSOR_EXCLUSIONS = (MENU_BAR, (14, 22, 418, 63), (62, 62, 578, 386))
+_HOUSE_CUTAWAY_SHA = "b04a9476b85b648e6112b77ac61f101a79d3d802ec07e25a05a583e574bc85bc"
+_HOUSE_KITCHEN = ((231, 106, 307, 155), "bf2e9e0d327e80a25b4228cc2279515c5fc5f8a2541fab71e10bfe851b4f4310")
+_HOUSE_FLOOR_SHA = "99abaac493c33dca36000702812d9e6d836f8df5c82029f86a29239f2d5d3756"
+_HOUSE_FLOOR_ROWS = tuple((y, 409 - y, 429 - y) for y in range(209, 298))
+_HOUSE_SIDING = ((316, 102), (309, 102, 317, 142), 251,
+                 "e636529b7aabb18e4ab899c09e01b488298454cfa5a6b4902578b969dac34afa")
 
 
 def _yard_state(scalars):
@@ -47,12 +55,22 @@ def _yard_state(scalars):
     return tuple(field(address) for address in (0x51688, 0x5168A, 0x515FC, 0x5160A, 0x5160C)) == (25, 21, 37, 31, 1)
 
 
-def yard_window_candidate(frame):
-    """Reject ordinary frames before requesting an additional mailbox capture."""
+def _window_title_pixels(frame, points):
     width, height, pitch, pixel_format, raw = frame
     if (width, height, pixel_format) != (640, 480, 1) or pitch < width * 4 or len(raw) < pitch * height:
         return False
-    return all(raw[y * pitch + 4 * x:y * pitch + 4 * x + 3] == _TITLE_BGR for x, y in _TITLE_PIXELS)
+    return all(raw[y * pitch + 4 * x:y * pitch + 4 * x + 3] == _TITLE_BGR for x, y in points)
+
+
+def yard_window_candidate(frame):
+    """Reject ordinary frames before requesting an additional mailbox capture."""
+    return _window_title_pixels(frame, _TITLE_PIXELS)
+
+
+def house_window_candidate(frame):
+    """Require the native House title before requesting an overview capture."""
+    return (_window_title_pixels(frame, _HOUSE_TITLE_PIXELS)
+            and native_rgb_digest(frame[4], frame[2], _HOUSE_TITLE[0]) == _HOUSE_TITLE[1])
 
 
 def _cursor_clear(frame):
@@ -171,17 +189,22 @@ def _blink_lawn_runs(rgb):
     return _paint_runs(points, _lawn_color)
 
 
-def verified_yard_runs(frame, scalars):
-    """Return exact 2× paint runs for a matching Yard with synchronized state scalars."""
-    if not _yard_state(scalars) or not yard_window_candidate(frame):
-        return None
+def _overview_witnesses(frame, scalars, title_check, regions):
+    if not _yard_state(scalars) or not title_check(frame):
+        return False
     _, _, pitch, _, raw = frame
     if not all(raw[y * pitch + 4 * x:y * pitch + 4 * x + 3] == _GOLD_BGR for x, y in _RAILS):
-        return None
+        return False
     if not full_game_title_matches(raw, pitch) or not _cursor_clear(frame):
+        return False
+    return all(native_rgb_digest(raw, pitch, bounds) == expected for bounds, expected in regions)
+
+
+def verified_yard_runs(frame, scalars):
+    """Return exact 2× paint runs for a matching Yard with synchronized state scalars."""
+    if not _overview_witnesses(frame, scalars, yard_window_candidate, _REGIONS):
         return None
-    if any(native_rgb_digest(raw, pitch, bounds) != expected for bounds, expected in _REGIONS):
-        return None
+    _, _, pitch, _, raw = frame
     blink = _blink_rgb(raw, pitch)
     if sha256(blink).hexdigest() not in _BLINK_SHA:
         return None
@@ -190,3 +213,48 @@ def verified_yard_runs(frame, scalars):
         return None
     runs = _art_runs(canvas)
     return None if runs is None else runs + _blink_lawn_runs(blink)
+
+
+def _house_spans(raw, pitch, spans):
+    return _rgb(b"".join(raw[y * pitch + left * 4:y * pitch + right * 4] for y, left, right in spans))
+
+
+def _house_floor_color(x, y):
+    shade = (x // 13 * 3 + y // 9 * 2) % 5 - 2 + (x * 13 ^ y * 31) % 5 - 2
+    return bytes((132 + shade, 139 + shade, 136 + shade))
+
+
+@lru_cache(maxsize=1)
+def _house_floor_runs(strip):
+    if sha256(strip).hexdigest() != _HOUSE_FLOOR_SHA:
+        return None
+    cells = ((x, y) for y, left, right in _HOUSE_FLOOR_ROWS for x in range(left, right))
+    points = [point for index, point in enumerate(cells)
+              if strip[index * 3:index * 3 + 3] == b"\x82" * 3]
+    return _paint_runs(points, _house_floor_color) if len(points) == 1620 else None
+
+
+def _house_siding_runs(raw, pitch):
+    left, top, right, bottom = _HOUSE_SIDING[1]
+    siding_bgr = _SIDING[::-1]
+    # Include one native neighbor on every side to reject a component that joins other blue art.
+    blue = {(x, y) for y in range(top - 1, bottom + 1) for x in range(left - 1, right + 1)
+            if raw[y * pitch + x * 4:y * pitch + x * 4 + 3] == siding_bgr}
+    component = _siding_component(blue, *_HOUSE_SIDING)
+    return _paint_runs(component, _siding_color) if component is not None else ()
+
+
+def verified_house_runs(frame, scalars):
+    """Return native House floor runs and independently verified siding when present."""
+    common = (_REGIONS[0], *_REGIONS[2:])  # The exact House title is checked in its prefilter.
+    if not _overview_witnesses(frame, scalars, house_window_candidate, common):
+        return None
+    _, _, pitch, _, raw = frame
+    cutaway = _house_spans(raw, pitch, ((y, 64, min(320, 433 - y)) for y in range(83, 309)))
+    if sha256(cutaway).hexdigest() != _HOUSE_CUTAWAY_SHA:
+        return None
+    bounds, expected = _HOUSE_KITCHEN
+    if native_rgb_digest(raw, pitch, bounds) != expected:
+        return None
+    floor = _house_floor_runs(_house_spans(raw, pitch, _HOUSE_FLOOR_ROWS))
+    return None if floor is None else floor + _house_siding_runs(raw, pitch)

@@ -39,6 +39,14 @@ Six serial replay processes passed across three routes. Their 31 switches left o
 
 The exact original RGB checkpoints at calls 3000, 3165, and 20000 matched in the paired reference replay. Game Over displayed in Classic while HD was selected.
 
+## DOS Audio
+
+The fullscreen launcher sends the core's original signed 16-bit stereo audio to the default Windows playback endpoint at the negotiated rate. The pinned core uses 48 kHz. The same audio stream stays attached through Classic and HD switches. SimAnt's original Options menu controls the game's sound.
+
+A WinMM worker waits for queued samples, device completion, and shutdown events. It keeps up to 80 ms pending and four reusable 20 ms device buffers. A full queue drops excess samples to protect the emulator clock. If the endpoint cannot start, the game continues and logs the audio error.
+
+On Windows 11, the default endpoint naturally completed all 222,720 submitted frames with zero drops or device errors in the paced smoke. A paired Quick Game transition replay preserved the original opening RGB hashes, input sequence, and 4,287 core calls with audio active. Both runs delivered 3,111,888 PCM frames. Raw waveform hashes varied across Classic-only repeats as well as the switching run. A separate 20,000-call paired replay matched all three original RGB checkpoints with audio enabled and disabled.
+
 ## Prototype Limits
 
-The renderer redraws verified terrain and retains the original sprites and interface. The live app uses the replay core's audio configuration with no host audio playback. Replay evidence applies to the pinned DOS build and Quick Game fixtures.
+The renderer redraws verified terrain and retains the original sprites and interface. Replay evidence applies to the pinned DOS build and Quick Game fixtures.
